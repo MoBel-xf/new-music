@@ -6,6 +6,7 @@ import { CanceledError } from 'axios'
 const LRC_PROXY_BASE = import.meta.env.VITE_LRC_PROXY_BASE || ''
 
 const FALLBACK_PROXIES = [
+  (url: string) => `https://cors.isomorphic-git.org/${url}`,
   (url: string) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(url)}`,
   (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
 ]
@@ -51,14 +52,12 @@ export async function fetchLyricText(url: string): Promise<string> {
   }
 
   const candidateSet = new Set<string>()
+  candidateSet.add(safeUrl)
   if (LRC_PROXY_BASE) {
     candidateSet.add(buildProxyUrl(LRC_PROXY_BASE, safeUrl))
   }
   if (import.meta.env.DEV) {
     candidateSet.add(buildProxyUrl('/api/lrc', safeUrl))
-  }
-  if (!isCrossOrigin) {
-    candidateSet.add(safeUrl)
   }
   if (isCrossOrigin) {
     FALLBACK_PROXIES.forEach((fn) => candidateSet.add(fn(safeUrl)))

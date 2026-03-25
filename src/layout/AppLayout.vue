@@ -63,12 +63,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { searchAllSources } from '@/api'
 import Icon from '@/components/Icon.vue'
 import { usePlayerStore } from '@/stores/player'
+import { dbGetHomeRecommend, dbSetHomeRecommend } from '@/utils/db'
 
 const router = useRouter()
 const route = useRoute()
 const player = usePlayerStore()
 
 const loadingDefault = ref(false)
+const HOT_KEYWORD_CACHE_KEY = 'pika-play-hot-keyword'
 
 const DEFAULT_RECOMMEND_KEYWORDS = ['爆火', '流行', '热歌', '热门单曲', '抖音热歌', '华语流行', '飙升榜', '新歌榜', '网络热歌', '年度热单']
 
@@ -113,6 +115,39 @@ function onPlayTouchEnd(e: TouchEvent) {
   }
 }
 
+async function resolveFirstTracks(keywords: string[]) {
+  return new Promise<{ keyword: string; tracks: Awaited<ReturnType<typeof searchAllSources>> } | null>((resolve) => {
+    let pending = keywords.length
+    let settled = false
+
+    if (!pending) {
+      resolve(null)
+      return
+    }
+
+    keywords.forEach((keyword) => {
+      searchAllSources({ keyword, limit: 6 })
+        .then((tracks) => {
+          if (!settled && tracks.length) {
+            settled = true
+            resolve({ keyword, tracks })
+            return
+          }
+          pending -= 1
+          if (!pending && !settled) {
+            resolve(null)
+          }
+        })
+        .catch(() => {
+          pending -= 1
+          if (!pending && !settled) {
+            resolve(null)
+          }
+        })
+    })
+  })
+}
+
 async function handlePlayTap() {
   if (swipeHandled) {
     swipeHandled = false
@@ -133,13 +168,24 @@ async function loadDefaultTrack() {
   if (loadingDefault.value) return
   loadingDefault.value = true
   try {
-    const keywords = [...DEFAULT_RECOMMEND_KEYWORDS].sort(() => Math.random() - 0.5)
+    const cachedTracks = await dbGetHomeRecommend()
+    if (cachedTracks?.length) {
+      await player.loadTrackOnly(cachedTracks[0], cachedTracks)
+      return
+    }
 
-    for (const keyword of keywords.slice(0, 4)) {
-      const tracks = await searchAllSources({ keyword, limit: 6 })
-      if (tracks.length > 0) {
-        await player.loadTrackOnly(tracks[0], tracks)
-        break
+    const cachedKeyword = typeof window !== 'undefined' ? window.localStorage.getItem(HOT_KEYWORD_CACHE_KEY)?.trim() : ''
+    const keywords = [cachedKeyword, ...DEFAULT_RECOMMEND_KEYWORDS.sort(() => Math.random() - 0.5)].filter(
+      (keyword, index, list): keyword is string => Boolean(keyword) && list.indexOf(keyword) === index
+    )
+
+    const hotTrackResult = await resolveFirstTracks(keywords.slice(0, 4))
+
+    if (hotTrackResult?.tracks.length) {
+      await dbSetHomeRecommend(hotTrackResult.tracks)
+      await player.loadTrackOnly(hotTrackResult.tracks[0], hotTrackResult.tracks)
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(HOT_KEYWORD_CACHE_KEY, hotTrackResult.keyword)
       }
     }
   } catch {

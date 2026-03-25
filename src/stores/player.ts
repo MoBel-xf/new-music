@@ -219,6 +219,11 @@ export const usePlayerStore = defineStore('player', () => {
 
     let t = track
 
+    currentTrack.value = { ...track }
+    lyricLines.value = parseLrc(track.lrc || '')
+    currentLyricIndex.value = -1
+    syncMediaSessionMetadata()
+
     if (shouldFetchDetails(t)) {
       // 先查 IndexedDB 缓存
       const cached = await dbGetCachedTrack(t.uid)
@@ -275,6 +280,11 @@ export const usePlayerStore = defineStore('player', () => {
     if (context) playContext.value = context
 
     let t = track
+
+    currentTrack.value = { ...track }
+    lyricLines.value = parseLrc(track.lrc || '')
+    currentLyricIndex.value = -1
+    syncMediaSessionMetadata()
 
     if (shouldFetchDetails(t)) {
       const cached = await dbGetCachedTrack(t.uid)

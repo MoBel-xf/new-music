@@ -4,7 +4,13 @@ import { getColorSync } from 'colorthief'
 
 const DEFAULT_COLOR = '#2C2C2C'
 const CACHE_LIMIT = 80
+const IMG_PROXY_BASE = import.meta.env.VITE_IMG_PROXY_BASE || ''
 const cache = new Map<string, string>()
+
+const FALLBACK_IMAGE_PROXIES = [
+  (url: string) => `https://wsrv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//i, ''))}`,
+  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+]
 
 export function useColorExtract() {
   const dominantColor = ref(DEFAULT_COLOR)
@@ -45,38 +51,89 @@ function extractFromUrl(url: string): Promise<string> {
   if (!url || typeof window === 'undefined') return Promise.resolve(DEFAULT_COLOR)
 
   return new Promise((resolve) => {
+    const candidates = buildImageCandidates(url)
+
+    const run = async () => {
+      for (const candidate of candidates) {
+        const img = await loadImage(candidate)
+        if (!img) continue
+        try {
+          const color = getColorSync(img)
+          if (!color) continue
+          const [r, g, b] = color.array()
+          const tuned = tuneColor(r, g, b)
+          resolve(`rgb(${tuned.r}, ${tuned.g}, ${tuned.b})`)
+          return
+        } catch {
+          // 当前地址无法提色，继续尝试下一个候选地址
+        }
+      }
+      resolve(DEFAULT_COLOR)
+    }
+
+    run().catch(() => resolve(DEFAULT_COLOR))
+  })
+}
+
+function buildImageCandidates(rawUrl: string) {
+  const safeUrl = rawUrl.replace(/^http:\/\//i, 'https://')
+  const candidates = new Set<string>()
+
+  let isCrossOrigin = true
+  try {
+    isCrossOrigin = new URL(safeUrl).origin !== window.location.origin
+  } catch {
+    /* noop */
+  }
+
+  if (IMG_PROXY_BASE) {
+    candidates.add(buildQueryProxyUrl(IMG_PROXY_BASE, safeUrl))
+  }
+
+  if (import.meta.env.DEV) {
+    candidates.add(`/img-proxy/${encodeURIComponent(safeUrl)}`)
+  }
+
+  candidates.add(safeUrl)
+
+  if (isCrossOrigin) {
+    FALLBACK_IMAGE_PROXIES.forEach((proxyBuilder) => candidates.add(proxyBuilder(safeUrl)))
+  }
+
+  return Array.from(candidates)
+}
+
+function buildQueryProxyUrl(base: string, targetUrl: string) {
+  const normalizedBase = base.replace(/\/$/, '')
+  if (normalizedBase.includes('/img-proxy/')) {
+    return `${normalizedBase}${encodeURIComponent(targetUrl)}`
+  }
+  return `${normalizedBase}?url=${encodeURIComponent(targetUrl)}`
+}
+
+function loadImage(src: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
     const img = new Image()
-    // 通过本地代理加载跨域图片，绕过 CORS 限制
-    const proxyUrl = `/img-proxy/${encodeURIComponent(url)}`
+    img.crossOrigin = 'anonymous'
+    img.referrerPolicy = 'no-referrer'
 
     const timer = setTimeout(() => {
       img.onload = null
       img.onerror = null
-      resolve(DEFAULT_COLOR)
+      resolve(null)
     }, 5000)
 
     img.onload = () => {
       clearTimeout(timer)
-      try {
-        const color = getColorSync(img)
-        if (!color) {
-          resolve(DEFAULT_COLOR)
-          return
-        }
-        const [r, g, b] = color.array()
-        const tuned = tuneColor(r, g, b)
-        resolve(`rgb(${tuned.r}, ${tuned.g}, ${tuned.b})`)
-      } catch {
-        resolve(DEFAULT_COLOR)
-      }
+      resolve(img)
     }
 
     img.onerror = () => {
       clearTimeout(timer)
-      resolve(DEFAULT_COLOR)
+      resolve(null)
     }
 
-    img.src = proxyUrl
+    img.src = src
   })
 }
 

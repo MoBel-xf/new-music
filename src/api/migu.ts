@@ -67,6 +67,7 @@ export async function fetchDetails(track: Track): Promise<Track> {
   const audioUrl = getField(json, MIGU_DETAIL_MAP.audioUrl) || track.audioUrl || ''
   const coverRaw = getField(json, MIGU_DETAIL_MAP.cover) || track.cover || ''
   const lrcUrl = getField(json, MIGU_DETAIL_MAP.lrcUrl!)
+  const lyricText = lrcUrl ? await fetchLyricText(lrcUrl).catch(() => '') : ''
 
   const updated: Track = {
     ...track,
@@ -74,8 +75,8 @@ export async function fetchDetails(track: Track): Promise<Track> {
     audioUrl: buildCoverUrl(audioUrl), // http → https
     qualityLabel: inferQualityLabel(audioUrl),
     detailsLoaded: true,
-    lyricFetched: true
+    lrc: lyricText,
+    lyricFetched: Boolean(lyricText) || !lrcUrl
   }
-  if (lrcUrl) updated.lrc = await fetchLyricText(lrcUrl).catch(() => '')
   return updated
 }

@@ -28,14 +28,15 @@ npm run dev
 cp .env.example .env.development
 ```
 
-| 变量                    | 说明                     | 必填 |
-| ----------------------- | ------------------------ | ---- |
-| `VITE_MIGU_API_BASE`    | 咪咕 API 地址            | ✅   |
-| `VITE_NETEASE_API_BASE` | 网易云 API 地址          | ✅   |
-| `VITE_LRC_PROXY_BASE`   | 歌词跨域代理             | ❌   |
-| `VITE_QQ_API_BASE`      | QQ音乐 API（留空不启用） | ❌   |
-| `VITE_QQ_API_KEY`       | QQ音乐 API Key           | ❌   |
-| `VITE_KUWO_API_BASE`    | 酷我 API（留空不启用）   | ❌   |
+| 变量                    | 说明                       | 必填 |
+| ----------------------- | -------------------------- | ---- |
+| `VITE_MIGU_API_BASE`    | 咪咕 API 地址              | ✅   |
+| `VITE_NETEASE_API_BASE` | 网易云 API 地址            | ✅   |
+| `VITE_LRC_PROXY_BASE`   | 歌词跨域代理               | ❌   |
+| `VITE_IMG_PROXY_BASE`   | 封面图片代理（主导色提取） | ❌   |
+| `VITE_QQ_API_BASE`      | QQ音乐 API（留空不启用）   | ❌   |
+| `VITE_QQ_API_KEY`       | QQ音乐 API Key             | ❌   |
+| `VITE_KUWO_API_BASE`    | 酷我 API（留空不启用）     | ❌   |
 
 ## 项目结构
 
