@@ -1,0 +1,141 @@
+﻿/* src/styles/variables.css */
+:root {
+  --brand-from: #ff6b6b;
+  --brand-to: #ff9a3c;
+  --brand-grad: linear-gradient(135deg, #ff6b6b, #ff9a3c);
+  --brand-hot: #ff7d66;
+  --brand-gold: #f6b84f;
+  --brand-lime: #98f5b4;
+  --brand-cyan: #64c8ff;
+
+  --dominant-color: #ff6b6b;
+  --dominant-soft: color-mix(in srgb, var(--dominant-color) 28%, transparent);
+  --dominant-muted: color-mix(in srgb, var(--dominant-color) 52%, #121722);
+  --dominant-bright: color-mix(in srgb, var(--dominant-color) 68%, white);
+
+  --bg-canvas: #090b10;
+  --bg-base: #0b0e15;
+  --bg-sheet: rgba(13, 18, 28, 0.82);
+  --bg-card: rgba(19, 25, 38, 0.82);
+  --bg-active: rgba(255, 255, 255, 0.1);
+  --bg-active-hover: rgba(255, 255, 255, 0.16);
+  --bg-input: rgba(255, 255, 255, 0.08);
+  --bg-overlay: rgba(4, 6, 10, 0.52);
+
+  --surface-1: rgba(255, 255, 255, 0.06);
+  --surface-2: rgba(255, 255, 255, 0.1);
+  --surface-3: rgba(255, 255, 255, 0.16);
+  --surface-elevated: rgba(255, 255, 255, 0.2);
+  --surface-press: rgba(255, 255, 255, 0.24);
+
+  --border-light: rgba(255, 255, 255, 0.1);
+  --line-soft: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.18);
+
+  --text-primary: rgba(255, 255, 255, 0.96);
+  --text-secondary: rgba(255, 255, 255, 0.72);
+  --text-tertiary: rgba(255, 255, 255, 0.46);
+  --text-quaternary: rgba(255, 255, 255, 0.28);
+  --text-on-brand: #ffffff;
+
+  --glass-bg: rgba(255, 255, 255, 0.12);
+  --glass-blur: blur(18px);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 18px 48px rgba(0, 0, 0, 0.3);
+  --glass-radius: 20px;
+  --glass-radius-webkit: 20px;
+  --glass-text-color: rgba(255, 255, 255, 0.95);
+
+  --icon-primary: var(--text-primary);
+  --icon-secondary: var(--text-secondary);
+  --icon-accent: var(--dominant-bright);
+  --icon-like: #ff7c87;
+  --icon-download: #88d4ff;
+  --icon-queue: #ffc96b;
+  --icon-volume: #a8f0c8;
+  --tabbar-progress-color: #73f0bb;
+
+  --play-hero-shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
+  --play-card-shadow: 0 20px 40px rgba(0, 0, 0, 0.26);
+  --play-progress-track: rgba(255, 255, 255, 0.14);
+  --play-progress-fill: linear-gradient(90deg, color-mix(in srgb, var(--dominant-color) 75%, white), var(--brand-to));
+  --play-lyric-current-bg: color-mix(in srgb, var(--dominant-color) 24%, rgba(255, 255, 255, 0.08));
+  --play-lyric-current-border: color-mix(in srgb, var(--dominant-color) 46%, rgba(255, 255, 255, 0.1));
+
+  --immersive-base: #0e121b;
+  --immersive-base-strong: #090b11;
+  --immersive-dark-1: #151b28;
+  --immersive-dark-2: #090b10;
+  --immersive-bg:
+    radial-gradient(circle at top, color-mix(in srgb, var(--dominant-color) 28%, transparent) 0%, transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, var(--dominant-color) 72%, #161b28) 0%, #101520 38%, #090b10 100%);
+
+  --src-migu: #ff9040;
+  --src-netease: #ff3b30;
+  --src-qq: #1baced;
+  --src-kuwo: #a259ff;
+
+  --radius-sm: 10px;
+  --radius-md: 18px;
+  --radius-lg: 28px;
+  --radius-xl: 36px;
+  --radius-full: 999px;
+
+  --shadow-card: 0 10px 32px rgba(0, 0, 0, 0.22);
+  --shadow-float: 0 18px 44px rgba(0, 0, 0, 0.32);
+  --shadow-glass: var(--glass-shadow);
+
+  --tabbar-height: 56px;
+  --playerbar-height: 72px;
+  --app-height: 100dvh;
+  --app-width: 100vw;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+:root[data-theme='light'] {
+  --dominant-soft: color-mix(in srgb, var(--dominant-color) 18%, white);
+  --dominant-muted: color-mix(in srgb, var(--dominant-color) 18%, white);
+  --dominant-bright: color-mix(in srgb, var(--dominant-color) 55%, #fff8f2);
+
+  --bg-canvas: #f5f6fa;
+  --bg-base: #f7f7fb;
+  --bg-sheet: rgba(255, 255, 255, 0.88);
+  --bg-card: rgba(255, 255, 255, 0.9);
+  --bg-active: rgba(15, 23, 42, 0.06);
+  --bg-active-hover: rgba(15, 23, 42, 0.1);
+  --bg-input: rgba(15, 23, 42, 0.05);
+  --bg-overlay: rgba(255, 255, 255, 0.6);
+
+  --surface-1: rgba(10, 16, 24, 0.04);
+  --surface-2: rgba(10, 16, 24, 0.07);
+  --surface-3: rgba(10, 16, 24, 0.12);
+  --surface-elevated: rgba(255, 255, 255, 0.9);
+  --surface-press: rgba(10, 16, 24, 0.16);
+
+  --border-light: rgba(12, 18, 32, 0.08);
+  --line-soft: rgba(12, 18, 32, 0.06);
+  --line-strong: rgba(12, 18, 32, 0.12);
+
+  --text-primary: #202533;
+  --text-secondary: #556072;
+  --text-tertiary: #7e899c;
+  --text-quaternary: #9fa9b9;
+
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-blur: blur(14px);
+  --glass-border: 1px solid rgba(12, 18, 32, 0.08);
+  --glass-shadow: 0 18px 42px rgba(20, 28, 40, 0.12);
+  --glass-text-color: #202533;
+
+  --play-progress-track: rgba(10, 16, 24, 0.12);
+  --play-lyric-current-bg: color-mix(in srgb, var(--dominant-color) 16%, white);
+  --play-lyric-current-border: color-mix(in srgb, var(--dominant-color) 26%, rgba(10, 16, 24, 0.08));
+
+  --immersive-base: #f4f6fb;
+  --immersive-base-strong: #edf0f6;
+  --immersive-dark-1: #ffffff;
+  --immersive-dark-2: #eef2f8;
+  --immersive-bg:
+    radial-gradient(circle at top, color-mix(in srgb, var(--dominant-color) 18%, white) 0%, transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, var(--dominant-color) 18%, white) 0%, #f7f8fb 42%, #eef2f8 100%);
+}

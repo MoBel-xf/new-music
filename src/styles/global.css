@@ -1,0 +1,250 @@
+﻿/* src/styles/global.css */
+@import './variables.css';
+@import './motion.css';
+@import './surfaces.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: var(--app-height);
+  min-height: var(--app-height);
+  font-family: 'Avenir Next', 'PingFang SC', 'Helvetica Neue', sans-serif;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+body {
+  background: radial-gradient(circle at top, color-mix(in srgb, var(--dominant-color) 8%, transparent) 0%, transparent 28%), var(--bg-base);
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-active);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+button:disabled,
+input:disabled {
+  cursor: default;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* 页面滚动容器：TabBar + PlayerBar 留白 */
+.page-scroll {
+  height: calc(var(--app-height) - var(--tabbar-height) - var(--playerbar-height) - var(--safe-bottom));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 无 playerbar 时的页面滚动容器 */
+.page-scroll-no-player {
+  height: calc(var(--app-height) - var(--tabbar-height) - var(--safe-bottom));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 全局弹窗样式 */
+.van-popup--bottom {
+  background: color-mix(in srgb, var(--bg-sheet) 92%, transparent) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  border-bottom: none;
+  color: var(--glass-text-color);
+  border-radius: var(--glass-radius) var(--glass-radius) 0 0;
+  box-shadow: var(--glass-shadow);
+}
+
+.van-action-sheet {
+  background: var(--glass-bg) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  border-bottom: none;
+  color: var(--glass-text-color);
+  border-radius: var(--glass-radius) var(--glass-radius) 0 0;
+  box-shadow: var(--glass-shadow);
+  animation: slideUpIn 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.van-dialog {
+  background: color-mix(in srgb, var(--bg-sheet) 95%, transparent) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  color: var(--glass-text-color);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
+}
+
+/* Toast 独立样式，避免深浅色下文字和背景重叠 */
+.van-toast {
+  background: rgba(20, 20, 40, 0.78) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-float);
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+
+.van-toast__text,
+.van-toast__icon,
+.van-toast__loading {
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='light'] .van-toast {
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* 弹窗内容区域 */
+.van-popup__content,
+.van-action-sheet__content,
+.van-dialog__content {
+  background: transparent;
+}
+
+/* 弹窗内文字颜色 */
+.van-action-sheet__item,
+.van-dialog__message,
+.van-popup__title {
+  color: var(--glass-text-color);
+  font-weight: 500;
+}
+
+/* 弹窗按钮样式 */
+.van-action-sheet__item {
+  padding: 16px;
+  transition: all 0.2s ease;
+  border-radius: 12px;
+}
+
+.van-action-sheet__item:active,
+.van-action-sheet__item--hover {
+  background: var(--bg-active) !important;
+}
+
+.van-dialog__confirm,
+.van-dialog__cancel {
+  background: var(--bg-active) !important;
+  color: var(--glass-text-color);
+  transition: all 0.2s ease;
+}
+
+.van-dialog__confirm:active,
+.van-dialog__cancel:active {
+  background: var(--bg-active-hover) !important;
+}
+
+/* 弹窗分割线 */
+.van-action-sheet__divider {
+  background: var(--border-light);
+}
+
+/* 深色模式下弹窗的图标颜色 */
+.van-icon {
+  color: var(--text-secondary);
+}
+
+/* 弹窗输入框样式，仅作用于弹窗场景，避免污染搜索框 */
+.van-dialog .van-field__control,
+.van-popup .van-field__control,
+.van-action-sheet .van-field__control {
+  color: var(--glass-text-color);
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 10px;
+  backdrop-filter: blur(4px);
+}
+
+.van-dialog .van-field__label,
+.van-popup .van-field__label,
+.van-action-sheet .van-field__label {
+  color: var(--text-secondary);
+}
+
+/* 弹窗选择器样式 */
+.van-picker__column {
+  color: var(--glass-text-color);
+}
+
+.van-picker__item--selected {
+  background: var(--bg-active);
+}
+
+/* overlay遮罩优化 */
+.van-overlay {
+  background: rgba(5, 7, 12, 0.42);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+/* Loading加载动画颜色 */
+.van-loading__spinner {
+  color: color-mix(in srgb, var(--dominant-color) 72%, white);
+}
+
+/* 主按钮风格 */
+.van-button--primary {
+  background: var(--brand-grad);
+  color: var(--glass-text-color);
+}
+.van-search__content {
+  border: var(--glass-border);
+  background: var(--glass-bg) !important;
+  border-radius: var(--radius-full);
+}
+.van-back-top {
+  background: var(--glass-bg) !important;
+  color: var(--glass-text-color);
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--shadow-card);
+}
+.van-hairline--top-bottom:after {
+  border-width: 0 !important;
+}
+.van-tabbar-item__text {
+  color: var(--text-primary) !important;
+}
+
+.van-pull-refresh__head {
+  color: var(--text-secondary);
+}

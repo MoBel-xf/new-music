@@ -1,0 +1,85 @@
+﻿/* src/styles/vant-override.css */
+:root {
+  --van-primary-color: var(--brand-from);
+  --van-active-color: var(--brand-to);
+
+  --van-tabbar-background: transparent;
+
+  --van-tabbar-item-active-color: var(--text-primary);
+  --van-tabbar-item-text-color: var(--text-secondary);
+  --van-tabbar-height: var(--tabbar-height);
+
+  --van-nav-bar-background: transparent;
+  --van-nav-bar-title-font-size: 16px;
+  --van-nav-bar-height: 50px;
+  --van-nav-bar-title-text-color: var(--text-primary);
+  --van-nav-bar-icon-color: var(--text-primary);
+
+  --van-search-background: transparent;
+  --van-search-content-background: var(--surface-2);
+  --van-search-input-height: 36px;
+  --van-search-action-text-color: var(--text-primary);
+  --van-field-input-text-color: var(--text-primary);
+
+  --van-button-primary-background: var(--brand-grad);
+  --van-button-primary-border-color: transparent;
+
+  --van-tag-primary-color: var(--brand-from);
+
+  --van-border-radius-lg: var(--radius-md);
+  --van-border-radius-md: 10px;
+
+  --van-font-size-md: 14px;
+  --van-font-size-sm: 12px;
+  --van-font-size-lg: 16px;
+
+  --van-action-sheet-border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  --van-popup-border-radius: var(--radius-lg);
+
+  --van-cell-background: transparent;
+  --van-cell-group-background: transparent;
+  --van-cell-text-color: var(--text-primary);
+  --van-cell-value-color: var(--text-secondary);
+  --van-cell-right-icon-color: var(--text-secondary);
+  --van-border-color: var(--line-soft);
+
+  --van-background: transparent;
+  --van-background-2: transparent;
+  --van-text-color: var(--text-primary);
+}
+
+.van-cell-group--inset,
+.van-cell-group {
+  /* background: var(--glass-bg) !important; */
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  box-shadow: var(--glass-shadow) !important;
+  border-radius: var(--glass-radius);
+  -webkit-border-radius: var(--glass-radius-webkit);
+  color: var(--glass-text-color);
+}
+
+:root {
+  --van-cell-active-color: var(--surface-2);
+}
+
+.van-cell {
+  background: transparent !important;
+}
+
+.van-cell .van-cell__title {
+  color: var(--text-primary);
+}
+
+.van-cell .van-cell__value,
+.van-cell .van-cell__right-icon {
+  color: var(--text-secondary);
+}
+
+:root[data-theme='light'] {
+  --van-border-color: var(--line-soft);
+  --van-tabbar-background: transparent;
+  --van-search-content-background: var(--surface-2);
+  --van-cell-active-color: var(--surface-2);
+}

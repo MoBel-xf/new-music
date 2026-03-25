@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>APP Music</title>
+    <link rel="icon" href="/public/favicon.ico" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background:
+          radial-gradient(circle at top, rgba(112, 196, 255, 0.18), transparent 34%), linear-gradient(180deg, #0b1018 0%, #121926 48%, #090d14 100%);
+      }
+
+      body {
+        font-family: 'Nunito', sans-serif;
+      }
+
+      #boot-loading {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background:
+          radial-gradient(circle at top, rgba(112, 196, 255, 0.16), transparent 34%), linear-gradient(180deg, #0b1018 0%, #121926 48%, #090d14 100%);
+        transition:
+          opacity 0.35s ease,
+          visibility 0.35s ease;
+      }
+
+      #boot-loading.is-hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      .boot-card {
+        position: relative;
+        min-width: 168px;
+        padding: 24px 24px 20px;
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        text-align: center;
+        overflow: hidden;
+      }
+
+      .boot-card::before {
+        content: '';
+        position: absolute;
+        inset: auto -18% -38% auto;
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(115, 240, 187, 0.28), transparent 68%);
+        filter: blur(10px);
+        animation: boot-breathe 2.4s ease-in-out infinite;
+      }
+
+      .boot-disc {
+        position: relative;
+        z-index: 1;
+        width: 52px;
+        height: 52px;
+        margin: 0 auto 14px;
+        border-radius: 50%;
+        border: 3px solid rgba(255, 255, 255, 0.12);
+        border-top-color: #73f0bb;
+        border-right-color: #70c4ff;
+        animation:
+          boot-spin 0.9s linear infinite,
+          boot-breathe 2.4s ease-in-out infinite;
+      }
+
+      .boot-title {
+        position: relative;
+        z-index: 1;
+        margin: 0;
+        color: #f5f9ff;
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+      }
+
+      .boot-subtitle {
+        position: relative;
+        z-index: 1;
+        margin: 6px 0 0;
+        color: rgba(245, 249, 255, 0.64);
+        font-size: 12px;
+      }
+
+      @keyframes boot-spin {
+        from {
+          transform: rotate(0deg);
+        }
+
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @keyframes boot-breathe {
+        0%,
+        100% {
+          transform: scale(0.96);
+          opacity: 0.82;
+        }
+
+        50% {
+          transform: scale(1.06);
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="boot-loading" aria-live="polite">
+      <div class="boot-card">
+        <div class="boot-disc"></div>
+        <p class="boot-title">APP Music</p>
+        <p class="boot-subtitle" id="boot-subtitle">正在加载播放页…</p>
+      </div>
+    </div>
+    <div id="app"></div>
+    <script>
+      ;(function () {
+        var subtitle = document.getElementById('boot-subtitle')
+        if (!subtitle) return
+
+        var hash = window.location.hash || '#/play'
+        var path = hash.replace(/^#/, '').split('?')[0] || '/play'
+        var textMap = {
+          '/': '正在加载播放页…',
+          '/play': '正在加载播放页…',
+          '/home': '正在加载首页…',
+          '/mine': '正在加载我的页面…',
+          '/search': '正在加载搜索页…',
+          '/favorites': '正在加载收藏列表…',
+          '/history': '正在加载历史记录…'
+        }
+
+        subtitle.textContent = path.indexOf('/playlist/') === 0 ? '正在加载歌单详情…' : textMap[path] || '正在加载页面…'
+      })()
+    </script>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

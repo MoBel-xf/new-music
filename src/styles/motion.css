@@ -1,0 +1,65 @@
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulseGlow {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.24);
+  }
+
+  50% {
+    transform: scale(1.015);
+    box-shadow: 0 22px 70px color-mix(in srgb, var(--dominant-color) 24%, rgba(0, 0, 0, 0.3));
+  }
+}
+
+@keyframes wave {
+  from {
+    transform: scaleY(0.52);
+  }
+
+  to {
+    transform: scaleY(1.24);
+  }
+}
+
+@keyframes slideUpIn {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.92);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pageGlow {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.9;
+  }
+
+  50% {
+    transform: translate3d(0, -8px, 0) scale(1.06);
+    opacity: 1;
+  }
+}
