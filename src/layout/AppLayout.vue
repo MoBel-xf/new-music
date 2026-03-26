@@ -370,10 +370,6 @@ onBeforeUnmount(() => {
   color: var(--tabbar-fg-primary);
 }
 
-.tabbar.tabbar-play .tabbar-ring {
-  opacity: 0;
-}
-
 .tabbar-ring {
   position: absolute;
   inset: 0;

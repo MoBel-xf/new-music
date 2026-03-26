@@ -1,8 +1,8 @@
 ﻿<template>
   <!-- v-long-press="onLongPress" -->
-  <div class="track-item" :class="{ active: isActive }" @click="onPlay">
-    <!-- 封面 -->
-    <div class="cover-wrap">
+  <div class="track-item" :class="{ active: isActive }" @click="onSwitch">
+    <!-- 封面：点击跳转播放页 -->
+    <div class="cover-wrap" @click.stop="onPlayAndGo">
       <img
         v-if="track.cover"
         :src="track.cover"
@@ -63,10 +63,10 @@ function onImgError(e: Event) {
   ;(e.target as HTMLImageElement).style.display = 'none'
 }
 
-async function onPlay() {
+// 播放歌曲（不跳转）
+async function playTrackOnly() {
   const contextType = (props.contextType as any) ?? 'results'
   if (contextType === 'results') {
-    // 搜索结果：插入当前歌曲，不替换播放列表
     await player.insertAndPlay(props.track)
   } else {
     const q = props.queue ?? [props.track]
@@ -75,6 +75,16 @@ async function onPlay() {
       playlistId: props.contextId
     })
   }
+}
+
+// 点击卡片非封面区域：仅切歌
+async function onSwitch() {
+  await playTrackOnly()
+}
+
+// 点击封面：切歌 + 跳转播放页
+async function onPlayAndGo() {
+  await playTrackOnly()
   router.push({ name: 'play' })
 }
 
