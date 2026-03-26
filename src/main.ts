@@ -11,6 +11,11 @@ const app = createApp(App)
 app.use(createPinia())
 app.use(router)
 
+// 主题必须在 store 初始化前应用，否则 restoreSession 中 data-theme 尚未设置
+import { useTheme } from '@/composables/useTheme'
+const { initTheme } = useTheme()
+initTheme()
+
 function setViewportVars() {
   const root = document.documentElement
   const viewportHeight = window.visualViewport?.height ?? window.innerHeight

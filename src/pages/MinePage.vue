@@ -80,16 +80,21 @@
       <section class="section">
         <div class="section-title" style="margin-bottom: 12px">设置</div>
         <van-cell-group class="glass-cell-group">
-          <van-cell title="深浅色模式" center clickable>
+          <van-cell title="深浅色模式" center>
             <template #icon><Icon name="icon-user-o" size="18" /></template>
             <template #right-icon>
-              <van-switch
-                :model-value="theme === 'dark'"
-                @update:model-value="toggleTheme"
-                size="20px"
-                active-color="var(--bg-active)"
-                inactive-color="var(--bg-active)"
-              />
+              <div class="theme-toggle-group">
+                <button
+                  v-for="opt in themeOptions"
+                  :key="opt.value"
+                  class="theme-toggle-btn"
+                  :class="{ active: theme === opt.value }"
+                  type="button"
+                  @click="setTheme(opt.value)"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
             </template>
           </van-cell>
           <van-cell title="播放模式" center clickable @click="cycleMode">
@@ -98,7 +103,10 @@
               <button class="mode-toggle" type="button" @click.stop="cycleMode">{{ modeLabel }}</button>
             </template>
           </van-cell>
-          <van-cell title="清除播放历史" is-link clickable @click="confirmClearHistory" center>
+          <van-cell title="推荐与缓存配置" is-link clickable @click="openAppConfigPopup" center>
+            <template #icon><Icon name="icon-setting" size="18" /></template>
+          </van-cell>
+          <van-cell title="缓存管理" is-link clickable @click="router.push({ name: 'cache' })" center>
             <template #icon><Icon name="icon-delete" size="18" /></template>
           </van-cell>
         </van-cell-group>
@@ -127,6 +135,36 @@
         <van-field v-model="renameVal" placeholder="新名称" autofocus maxlength="20" show-word-limit />
       </div>
     </van-dialog>
+
+    <van-popup v-model:show="showAppConfig" position="bottom" round :style="{ height: 'calc(100dvh - 24px)' }">
+      <div class="config-popup">
+        <div class="config-popup-header">
+          <span class="config-popup-title">推荐与缓存配置</span>
+          <button class="picker-close" type="button" @click="showAppConfig = false">×</button>
+        </div>
+
+        <div class="config-form">
+          <van-field v-model="configDraft.homeQueryKeyword" label="首页查询内容" placeholder="如：抖音热歌" maxlength="20" />
+          <van-field v-model="configDraft.homeQueryLimit" label="首页首次条数" type="number" input-align="right" />
+          <van-field v-model="configDraft.playQueryKeyword" label="播放查询内容" placeholder="如：华语流行" maxlength="20" />
+          <van-field v-model="configDraft.playQueryLimit" label="播放查询条数" type="number" input-align="right" />
+          <van-field v-model="configDraft.prefetchCount" label="详情预缓存条数" type="number" input-align="right" />
+          <van-field v-model="configDraft.colorPrefetchCount" label="主导色预取条数" type="number" input-align="right" />
+          <div class="config-switch-row">
+            <div class="config-switch-copy">
+              <span class="config-switch-title">其他页面保留主导色</span>
+              <span class="config-switch-subtitle">切换首页、我的等页面时，tabbar 继续沿用当前歌曲主导色</span>
+            </div>
+            <van-switch v-model="configDraft.keepTabbarDominantColor" size="20px" active-color="var(--dominant-color)" />
+          </div>
+        </div>
+
+        <div class="config-actions">
+          <button class="config-btn ghost" type="button" @click="showAppConfig = false">取消</button>
+          <button class="config-btn primary" type="button" @click="saveAppConfig">保存</button>
+        </div>
+      </div>
+    </van-popup>
   </div>
 </template>
 
@@ -134,19 +172,37 @@
 defineOptions({ name: 'MinePage' })
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAppConfigStore } from '@/stores/appConfig'
 import { usePlayerStore } from '@/stores/player'
 import { usePlaylistStore } from '@/stores/playlist'
 import { useTheme } from '@/composables/useTheme'
+import type { ThemeMode } from '@/composables/useTheme'
 import { showConfirmDialog, showToast } from 'vant'
 import type { Playlist, PlayMode } from '@/types/music'
 import Icon from '@/components/Icon.vue'
 
 const router = useRouter()
+const appConfig = useAppConfigStore()
 const player = usePlayerStore()
 const plStore = usePlaylistStore()
-const { theme, toggleTheme } = useTheme()
+const { theme, setTheme } = useTheme()
+const themeOptions: { value: ThemeMode; label: string }[] = [
+  { value: 'light', label: '浅色' },
+  { value: 'dark', label: '深色' },
+  { value: 'dominant', label: '沉浸' }
+]
 const showCreate = ref(false)
 const newPlaylistName = ref('')
+const showAppConfig = ref(false)
+const configDraft = ref({
+  homeQueryKeyword: '',
+  homeQueryLimit: '12',
+  playQueryKeyword: '',
+  playQueryLimit: '12',
+  prefetchCount: '4',
+  colorPrefetchCount: '6',
+  keepTabbarDominantColor: false
+})
 
 function openCreatePlaylist() {
   newPlaylistName.value = ''
@@ -212,10 +268,31 @@ async function confirmDelete(id: string) {
   showToast('歌单已删除')
 }
 
-async function confirmClearHistory() {
-  await showConfirmDialog({ title: '清除历史', message: '确定清除全部播放历史？' })
-  await plStore.clearHistory()
-  showToast('已清除')
+function openAppConfigPopup() {
+  configDraft.value = {
+    homeQueryKeyword: appConfig.homeQueryKeyword,
+    homeQueryLimit: String(appConfig.homeQueryLimit),
+    playQueryKeyword: appConfig.playQueryKeyword,
+    playQueryLimit: String(appConfig.playQueryLimit),
+    prefetchCount: String(appConfig.prefetchCount),
+    colorPrefetchCount: String(appConfig.colorPrefetchCount),
+    keepTabbarDominantColor: appConfig.keepTabbarDominantColor
+  }
+  showAppConfig.value = true
+}
+
+function saveAppConfig() {
+  appConfig.patchConfig({
+    homeQueryKeyword: configDraft.value.homeQueryKeyword,
+    homeQueryLimit: Number(configDraft.value.homeQueryLimit),
+    playQueryKeyword: configDraft.value.playQueryKeyword,
+    playQueryLimit: Number(configDraft.value.playQueryLimit),
+    prefetchCount: Number(configDraft.value.prefetchCount),
+    colorPrefetchCount: Number(configDraft.value.colorPrefetchCount),
+    keepTabbarDominantColor: configDraft.value.keepTabbarDominantColor
+  })
+  showAppConfig.value = false
+  showToast('配置已保存')
 }
 
 const modeMap: Record<PlayMode, string> = { list: '列表循环', single: '单曲循环', shuffle: '随机播放' }
@@ -314,7 +391,9 @@ function cycleMode() {
   border: 1px solid var(--line-soft);
   border-radius: 22px;
   flex-shrink: 0;
-  box-shadow: var(--shadow-card);
+  transition:
+    border-color 0.5s ease,
+    background 0.5s ease;
 }
 
 .stat-card {
@@ -324,7 +403,7 @@ function cycleMode() {
   align-items: center;
   gap: 4px;
   padding: 10px 4px;
-  background: var(--surface-1);
+  background: transparent;
   border: 1px solid transparent;
   border-radius: 16px;
   cursor: pointer;
@@ -333,11 +412,13 @@ function cycleMode() {
   touch-action: manipulation;
   transition:
     transform 0.15s ease,
-    background 0.15s ease;
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 .stat-card:active {
   transform: scale(0.96);
-  background: var(--surface-2);
+  background: var(--dominant-tint-2);
+  border-color: var(--dominant-border);
 }
 .stat-num {
   font-size: 20px;
@@ -393,6 +474,9 @@ function cycleMode() {
   border-radius: var(--radius-full);
   cursor: pointer;
   touch-action: manipulation;
+  transition:
+    border-color 0.5s ease,
+    background 0.5s ease;
 }
 
 .playlist-swipe {
@@ -405,6 +489,9 @@ function cycleMode() {
   background: var(--surface-1);
   border: 1px solid var(--line-soft);
   border-radius: 20px;
+  transition:
+    border-color 0.5s ease,
+    background 0.5s ease;
 }
 .playlist-row {
   display: flex;
@@ -425,7 +512,7 @@ function cycleMode() {
   width: 46px;
   height: 46px;
   border-radius: 14px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--dominant-color) 22%, transparent), var(--surface-1));
+  background: linear-gradient(135deg, var(--dominant-tint-3), var(--surface-1));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -480,6 +567,9 @@ function cycleMode() {
   text-align: center;
   font-size: 14px;
   color: var(--text-secondary);
+  transition:
+    border-color 0.5s ease,
+    background 0.5s ease;
 }
 
 .mode-toggle {
@@ -491,6 +581,126 @@ function cycleMode() {
   color: var(--text-primary);
   cursor: pointer;
   touch-action: manipulation;
+  transition:
+    border-color 0.5s ease,
+    background 0.5s ease;
+}
+
+.theme-toggle-group {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  background: var(--dominant-tint-1);
+}
+.theme-toggle-btn {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  padding: 5px 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background 0.3s,
+    color 0.3s;
+  line-height: 1.2;
+}
+.theme-toggle-btn.active {
+  background: var(--dominant-accent, var(--bg-active));
+  color: #fff;
+  border-radius: var(--radius-full);
+}
+
+.config-popup {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 24px);
+  padding: 16px 16px 0;
+  background: var(--bg-sheet);
+}
+
+.config-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.config-popup-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.config-form {
+  flex: 1;
+  min-height: 240px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid var(--dominant-border);
+  border-radius: 20px;
+  background: radial-gradient(circle at 20% 0%, var(--dominant-tint-2) 0%, transparent 40%), color-mix(in srgb, var(--bg-card) 94%, transparent);
+  transition: border-color 0.5s ease;
+}
+
+.config-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.config-switch-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.config-switch-title {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.config-switch-subtitle {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.config-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  position: sticky;
+  bottom: 0;
+  margin-top: 16px;
+  padding: 12px 0 calc(var(--playerbar-height) + var(--tabbar-height) + var(--safe-bottom) + 16px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-sheet) 12%, transparent), var(--bg-sheet) 24% 100%);
+}
+
+.config-btn {
+  height: 44px;
+  border: 0;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.config-btn.ghost {
+  color: var(--text-secondary);
+  background: var(--surface-1);
+}
+
+.config-btn.primary {
+  color: var(--text-on-brand);
+  background: var(--brand-grad);
+  box-shadow: var(--dominant-glow);
 }
 
 /* Vant 单元格组 */
@@ -499,6 +709,9 @@ function cycleMode() {
   border: 1px solid var(--line-soft);
   border-radius: 20px;
   overflow: hidden;
+  transition:
+    border-color 0.5s ease,
+    background 0.5s ease;
 }
 
 :deep(.glass-cell-group .van-cell) {

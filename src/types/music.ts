@@ -26,6 +26,8 @@ export interface Track {
   pay?: string
   detailsLoaded?: boolean
   lyricFetched?: boolean
+  /** 音频加载失败后标记已重试，防止死循环 */
+  _retried?: boolean
 }
 
 export interface LyricLine {

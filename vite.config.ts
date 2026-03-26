@@ -95,5 +95,25 @@ export default defineConfig({
   preview: {
     host: true,
     port: 7654
+  },
+
+  build: {
+    // 每次构建前清空 dist
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // 固定文件名，不带随机 hash
+        entryFileNames: 'assets/app.js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: (assetInfo) => {
+          // CSS 统一输出为 app.css
+          if (assetInfo.names?.some((n) => n.endsWith('.css'))) {
+            return 'assets/app.css'
+          }
+          // 其他资源保留原名
+          return 'assets/[name][extname]'
+        }
+      }
+    }
   }
 })

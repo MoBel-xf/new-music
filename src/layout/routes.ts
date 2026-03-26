@@ -5,6 +5,7 @@ import MinePage from '@/pages/MinePage.vue'
 import PlayPage from '@/pages/PlayPage.vue'
 import PlaylistDetailPage from '@/pages/PlaylistDetailPage.vue'
 import SearchPage from '@/pages/SearchPage.vue'
+import CacheManagePage from '@/pages/CacheManagePage.vue'
 
 export const primaryRoutes: RouteRecordRaw = {
   path: '/',
@@ -35,5 +36,10 @@ export const secondaryRoutes: RouteRecordRaw[] = [
     name: 'history',
     component: PlaylistDetailPage,
     props: { mode: 'history' }
+  },
+  {
+    path: '/cache',
+    name: 'cache',
+    component: CacheManagePage
   }
 ]

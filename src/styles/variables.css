@@ -9,9 +9,20 @@
   --brand-cyan: #64c8ff;
 
   --dominant-color: #ff6b6b;
-  --dominant-soft: color-mix(in srgb, var(--dominant-color) 28%, transparent);
-  --dominant-muted: color-mix(in srgb, var(--dominant-color) 52%, #121722);
-  --dominant-bright: color-mix(in srgb, var(--dominant-color) 68%, white);
+  /* 衍生变量：运行时由 JS 根据主导色亮度+主题动态计算（参考 tabbar 策略） */
+  /* 以下为初始 fallback，applyDominantColor() 会立即覆盖 */
+  --dominant-soft: rgba(255, 107, 107, 0.28);
+  --dominant-muted: rgb(120, 60, 60);
+  --dominant-bright: rgb(255, 150, 150);
+  --dominant-tint-1: rgba(255, 107, 107, 0.06);
+  --dominant-tint-2: rgba(255, 107, 107, 0.1);
+  --dominant-tint-3: rgba(255, 107, 107, 0.16);
+  --dominant-border: rgba(255, 107, 107, 0.1);
+  --dominant-border-strong: rgba(255, 107, 107, 0.2);
+  --dominant-glow: 0 4px 24px rgba(255, 107, 107, 0.18);
+  --dominant-glow-strong: 0 8px 32px rgba(255, 107, 107, 0.28);
+  --dominant-accent: rgb(255, 140, 140);
+  --dominant-text: rgb(255, 160, 160);
 
   --bg-canvas: #090b10;
   --bg-base: #0b0e15;
@@ -93,9 +104,19 @@
 }
 
 :root[data-theme='light'] {
-  --dominant-soft: color-mix(in srgb, var(--dominant-color) 18%, white);
-  --dominant-muted: color-mix(in srgb, var(--dominant-color) 18%, white);
-  --dominant-bright: color-mix(in srgb, var(--dominant-color) 55%, #fff8f2);
+  /* 衍生变量同样由 JS 动态覆盖，此处为初始 fallback */
+  --dominant-soft: rgba(255, 107, 107, 0.18);
+  --dominant-muted: rgb(255, 200, 200);
+  --dominant-bright: rgb(200, 80, 80);
+  --dominant-tint-1: rgba(255, 107, 107, 0.04);
+  --dominant-tint-2: rgba(255, 107, 107, 0.08);
+  --dominant-tint-3: rgba(255, 107, 107, 0.14);
+  --dominant-border: rgba(255, 107, 107, 0.12);
+  --dominant-border-strong: rgba(255, 107, 107, 0.24);
+  --dominant-glow: 0 4px 20px rgba(255, 107, 107, 0.1);
+  --dominant-glow-strong: 0 8px 28px rgba(255, 107, 107, 0.18);
+  --dominant-accent: rgb(200, 65, 65);
+  --dominant-text: rgb(180, 50, 50);
 
   --bg-canvas: #f5f6fa;
   --bg-base: #f7f7fb;

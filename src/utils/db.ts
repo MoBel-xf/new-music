@@ -7,6 +7,10 @@ const DB_VERSION = 2
 const TRACK_CACHE_LIMIT = 500
 const HOME_RECOMMEND_KEY = 'home-recommend'
 
+function buildHomeRecommendKey(cacheKey = 'default') {
+  return `${HOME_RECOMMEND_KEY}:${cacheKey}`
+}
+
 // ── IDB Schema 类型 ────────────────────────────────────────────────────────
 interface PikachuDBSchema {
   favorites: {
@@ -126,17 +130,33 @@ export async function dbDeletePlaylist(id: string): Promise<void> {
 }
 
 // ── 曲目详情缓存（LRU 500 条）──────────────────────────────────────────────
+const TRACK_CACHE_TTL = 2 * 60 * 60 * 1000 // 音频链接 2 小时过期
+
 export async function dbGetCachedTrack(uid: string): Promise<Track | null> {
   try {
     const db = await getDB()
     const item: (Track & { cachedAt: number }) | undefined = await db.get('track_cache', uid)
     if (!item) return null
+    // 超过过期时间则视为缓存失效
+    if (Date.now() - item.cachedAt > TRACK_CACHE_TTL) {
+      db.delete('track_cache', uid)
+      return null
+    }
     // 更新访问时间（LRU touch）
     db.put('track_cache', { ...item, cachedAt: Date.now() })
     const { cachedAt: _, ...track } = item
     return track as Track
   } catch {
     return null
+  }
+}
+
+export async function dbDeleteCachedTrack(uid: string): Promise<void> {
+  try {
+    const db = await getDB()
+    await db.delete('track_cache', uid)
+  } catch {
+    /* noop */
   }
 }
 
@@ -158,10 +178,10 @@ export async function dbSetCachedTrack(track: Track): Promise<void> {
 }
 
 // ── 首页推荐缓存 ───────────────────────────────────────────────────────────
-export async function dbGetHomeRecommend(): Promise<Track[] | null> {
+export async function dbGetHomeRecommend(cacheKey?: string): Promise<Track[] | null> {
   try {
     const db = await getDB()
-    const item: { id: string; tracks: Track[]; updatedAt: number } | undefined = await db.get('home_recommend', HOME_RECOMMEND_KEY)
+    const item: { id: string; tracks: Track[]; updatedAt: number } | undefined = await db.get('home_recommend', buildHomeRecommendKey(cacheKey))
     if (!item || !Array.isArray(item.tracks) || !item.tracks.length) return null
     return item.tracks
   } catch {
@@ -169,15 +189,54 @@ export async function dbGetHomeRecommend(): Promise<Track[] | null> {
   }
 }
 
-export async function dbSetHomeRecommend(tracks: Track[]): Promise<void> {
+export async function dbSetHomeRecommend(tracks: Track[], cacheKey?: string): Promise<void> {
   try {
     const db = await getDB()
     await db.put('home_recommend', {
-      id: HOME_RECOMMEND_KEY,
+      id: buildHomeRecommendKey(cacheKey),
       tracks,
       updatedAt: Date.now()
     })
   } catch {
     // 忽略缓存失败
   }
+}
+
+// ── 缓存管理 ────────────────────────────────────────────────────────────────
+export interface CacheStats {
+  history: number
+  trackCache: number
+  homeRecommend: number
+  favorites: number
+  playlists: number
+  searchHistory: number
+}
+
+export async function dbGetCacheStats(): Promise<CacheStats> {
+  const db = await getDB()
+  const [history, trackCache, homeRecommend, favorites, playlists] = await Promise.all([
+    db.count('history'),
+    db.count('track_cache'),
+    db.count('home_recommend'),
+    db.count('favorites'),
+    db.count('playlists')
+  ])
+  const searchHistory = JSON.parse(localStorage.getItem('pikachu-search-history') || '[]').length
+  return { history, trackCache, homeRecommend, favorites, playlists, searchHistory }
+}
+
+export async function dbClearTrackCache(): Promise<void> {
+  const db = await getDB()
+  await db.clear('track_cache')
+}
+
+export async function dbClearHomeRecommend(): Promise<void> {
+  const db = await getDB()
+  await db.clear('home_recommend')
+}
+
+export async function dbClearAllCache(): Promise<void> {
+  const db = await getDB()
+  await Promise.all([db.clear('history'), db.clear('track_cache'), db.clear('home_recommend')])
+  localStorage.removeItem('pikachu-search-history')
 }

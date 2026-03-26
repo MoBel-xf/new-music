@@ -8,8 +8,11 @@
       </router-view>
     </main>
 
-    <nav class="tabbar" :class="{ 'tabbar-play': isPlayRoute }" :style="tabbarStyle">
-      <div class="tabbar-ring"></div>
+    <nav ref="tabbarRef" class="tabbar" :class="{ 'tabbar-play': useDominantTabbarTone }" :style="tabbarStyle">
+      <svg class="tabbar-ring" :viewBox="`0 0 ${ringBox.width} ${ringBox.height}`" aria-hidden="true">
+        <path class="tabbar-ring-track" :d="ringPath" pathLength="100" />
+        <path class="tabbar-ring-progress" :d="ringPath" pathLength="100" />
+      </svg>
 
       <button class="tab-side" :class="{ active: routeTab === 'home' }" @click="goTo('home')">
         <Icon name="icon-wap-home-o" size="22" />
@@ -58,19 +61,29 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { searchAllSources } from '@/api'
+import { useColorExtract } from '@/composables/useColorExtract'
+import { useTheme } from '@/composables/useTheme'
+import { parseColor, mixColor } from '@/utils/color'
 import Icon from '@/components/Icon.vue'
+import { useAppConfigStore } from '@/stores/appConfig'
 import { usePlayerStore } from '@/stores/player'
 import { dbGetHomeRecommend, dbSetHomeRecommend } from '@/utils/db'
 
 const router = useRouter()
 const route = useRoute()
+const appConfig = useAppConfigStore()
 const player = usePlayerStore()
+const { prefetch } = useColorExtract()
+const { theme } = useTheme()
 
 const loadingDefault = ref(false)
 const HOT_KEYWORD_CACHE_KEY = 'pika-play-hot-keyword'
+const tabbarRef = ref<HTMLElement | null>(null)
+const ringBox = ref({ width: 100, height: 56, radius: 28 })
+let tabbarResizeObserver: ResizeObserver | null = null
 
 const DEFAULT_RECOMMEND_KEYWORDS = ['爆火', '流行', '热歌', '热门单曲', '抖音热歌', '华语流行', '飙升榜', '新歌榜', '网络热歌', '年度热单']
 
@@ -81,18 +94,85 @@ const routeTabMap: Record<string, string> = {
 }
 
 const isPlayRoute = computed(() => route.name === 'play')
+const useDominantTabbarTone = computed(
+  () => Boolean(player.currentTrack) && (isPlayRoute.value || appConfig.keepTabbarDominantColor || theme.value === 'dominant')
+)
+const playRecommendCacheKey = computed(() => `${appConfig.playQueryKeyword}:${appConfig.playQueryLimit}`)
+
+const isLightTabbarTone = computed(() => {
+  const rgb = parseColor(player.dominantColor)
+  if (!rgb) return false
+  const [r, g, b] = rgb
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.67
+})
 
 const tabbarStyle = computed(() => {
+  const progressValue = Math.max(0, Math.min(100, player.progress * 100))
+  const accent = player.dominantColor || '#ff6b6b'
+  const isLight = isLightTabbarTone.value
   const base: Record<string, string> = {
-    '--tabbar-progress-turn': player.currentTrack ? `${player.progress}turn` : '0turn'
+    '--tabbar-progress-value': player.currentTrack ? `${progressValue}` : '0',
+    '--tabbar-progress-color': useDominantTabbarTone.value ? mixColor(accent, isLight ? '#202533' : '#ffffff', isLight ? 0.12 : 0.28) : '#73f0bb',
+    '--tabbar-fg-primary': useDominantTabbarTone.value ? (isLight ? '#202533' : '#ffffff') : 'var(--text-primary)',
+    '--tabbar-fg-secondary': useDominantTabbarTone.value ? (isLight ? 'rgba(32,37,51,0.66)' : 'rgba(255,255,255,0.68)') : 'var(--text-tertiary)',
+    '--tabbar-center-bg': useDominantTabbarTone.value ? (isLight ? 'rgba(255,255,255,0.36)' : 'rgba(255,255,255,0.08)') : 'var(--surface-1)',
+    '--tabbar-center-border': useDominantTabbarTone.value ? (isLight ? 'rgba(32,37,51,0.1)' : 'rgba(255,255,255,0.12)') : 'var(--line-soft)',
+    '--tabbar-control-bg': useDominantTabbarTone.value
+      ? mixColor(accent, isLight ? '#ffffff' : '#0f1117', isLight ? 0.62 : 0.3)
+      : 'color-mix(in srgb, var(--dominant-color, #1fd6ff) 25%, rgba(255, 255, 255, 0.1))',
+    '--tabbar-cover-bg': useDominantTabbarTone.value ? (isLight ? 'rgba(255,255,255,0.44)' : 'rgba(255,255,255,0.12)') : 'rgba(255, 255, 255, 0.1)'
   }
-  if (isPlayRoute.value) {
+  if (useDominantTabbarTone.value) {
     base['--tabbar-bg'] = player.dominantColor
   }
   return base
 })
 
 const routeTab = computed(() => routeTabMap[route.name as string] ?? 'home')
+const ringPath = computed(() => {
+  const strokeInset = 1
+  const width = Math.max(4, ringBox.value.width - strokeInset * 2)
+  const height = Math.max(4, ringBox.value.height - strokeInset * 2)
+  const inset = strokeInset
+  const x = inset
+  const y = inset
+  const radius = Math.max(2, Math.min(ringBox.value.radius - inset, width / 2, height / 2))
+  const right = x + width
+  const bottom = y + height
+
+  return [
+    `M ${x + radius} ${y}`,
+    `H ${right - radius}`,
+    `A ${radius} ${radius} 0 0 1 ${right} ${y + radius}`,
+    `V ${bottom - radius}`,
+    `A ${radius} ${radius} 0 0 1 ${right - radius} ${bottom}`,
+    `H ${x + radius}`,
+    `A ${radius} ${radius} 0 0 1 ${x} ${bottom - radius}`,
+    `V ${y + radius}`,
+    `A ${radius} ${radius} 0 0 1 ${x + radius} ${y}`
+  ].join(' ')
+})
+
+function updateRingBox() {
+  const element = tabbarRef.value
+  if (!element) return
+  const { width, height } = element.getBoundingClientRect()
+  ringBox.value = {
+    width: Math.max(16, Math.round(width)),
+    height: Math.max(16, Math.round(height)),
+    radius: Math.max(8, Math.round(height / 2))
+  }
+}
+
+function observeTabbar() {
+  updateRingBox()
+  if (typeof ResizeObserver === 'undefined' || !tabbarRef.value) return
+  tabbarResizeObserver?.disconnect()
+  tabbarResizeObserver = new ResizeObserver(() => {
+    updateRingBox()
+  })
+  tabbarResizeObserver.observe(tabbarRef.value)
+}
 
 function goTo(name: 'home' | 'mine') {
   if (route.name === name) return
@@ -126,7 +206,7 @@ async function resolveFirstTracks(keywords: string[]) {
     }
 
     keywords.forEach((keyword) => {
-      searchAllSources({ keyword, limit: 6 })
+      searchAllSources({ keyword, limit: appConfig.playQueryLimit })
         .then((tracks) => {
           if (!settled && tracks.length) {
             settled = true
@@ -168,21 +248,24 @@ async function loadDefaultTrack() {
   if (loadingDefault.value) return
   loadingDefault.value = true
   try {
-    const cachedTracks = await dbGetHomeRecommend()
+    const cacheKey = playRecommendCacheKey.value
+    const cachedTracks = await dbGetHomeRecommend(cacheKey)
     if (cachedTracks?.length) {
+      void prefetch(cachedTracks.slice(0, appConfig.colorPrefetchCount).map((track) => track.cover))
       await player.loadTrackOnly(cachedTracks[0], cachedTracks)
       return
     }
 
     const cachedKeyword = typeof window !== 'undefined' ? window.localStorage.getItem(HOT_KEYWORD_CACHE_KEY)?.trim() : ''
-    const keywords = [cachedKeyword, ...DEFAULT_RECOMMEND_KEYWORDS.sort(() => Math.random() - 0.5)].filter(
+    const keywords = [cachedKeyword, appConfig.playQueryKeyword, ...DEFAULT_RECOMMEND_KEYWORDS.sort(() => Math.random() - 0.5)].filter(
       (keyword, index, list): keyword is string => Boolean(keyword) && list.indexOf(keyword) === index
     )
 
     const hotTrackResult = await resolveFirstTracks(keywords.slice(0, 4))
 
     if (hotTrackResult?.tracks.length) {
-      await dbSetHomeRecommend(hotTrackResult.tracks)
+      void prefetch(hotTrackResult.tracks.slice(0, appConfig.colorPrefetchCount).map((track) => track.cover))
+      await dbSetHomeRecommend(hotTrackResult.tracks, cacheKey)
       await player.loadTrackOnly(hotTrackResult.tracks[0], hotTrackResult.tracks)
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(HOT_KEYWORD_CACHE_KEY, hotTrackResult.keyword)
@@ -196,9 +279,15 @@ async function loadDefaultTrack() {
 }
 
 onMounted(async () => {
+  observeTabbar()
   if (!player.currentTrack) {
     await loadDefaultTrack()
   }
+})
+
+onBeforeUnmount(() => {
+  tabbarResizeObserver?.disconnect()
+  tabbarResizeObserver = null
 })
 </script>
 
@@ -247,29 +336,38 @@ onMounted(async () => {
 }
 
 .tabbar.tabbar-play .tab-side {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--tabbar-fg-secondary);
 }
 
 .tabbar.tabbar-play .tab-side.active {
-  color: #fff;
+  color: var(--tabbar-fg-primary);
 }
 
 .tabbar.tabbar-play .tab-center {
-  background: transparent;
-  border-color: transparent;
+  background: var(--tabbar-center-bg);
+  border-color: var(--tabbar-center-border);
 }
 
 .tabbar.tabbar-play .center-title {
-  color: #fff;
+  color: var(--tabbar-fg-primary);
 }
 
 .tabbar.tabbar-play .center-artist {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--tabbar-fg-secondary);
 }
 
 .tabbar.tabbar-play .center-play-btn {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  background: var(--tabbar-control-bg);
+  color: var(--tabbar-fg-primary);
+}
+
+.tabbar.tabbar-play .center-cover {
+  background: var(--tabbar-cover-bg);
+}
+
+.tabbar.tabbar-play .center-empty,
+.tabbar.tabbar-play .center-play-only {
+  color: var(--tabbar-fg-primary);
 }
 
 .tabbar.tabbar-play .tabbar-ring {
@@ -279,22 +377,28 @@ onMounted(async () => {
 .tabbar-ring {
   position: absolute;
   inset: 0;
-  padding: 2px;
-  border-radius: inherit;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
-  background: conic-gradient(
-    from -90deg,
-    var(--tabbar-progress-color, #73f0bb) 0turn var(--tabbar-progress-turn, 0turn),
-    rgba(255, 255, 255, 0.04) var(--tabbar-progress-turn, 0turn) 1turn
-  );
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
+  shape-rendering: geometricPrecision;
+}
+
+.tabbar-ring-track,
+.tabbar-ring-progress {
+  fill: none;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.tabbar-ring-track {
+  stroke: transparent;
+}
+
+.tabbar-ring-progress {
+  stroke: var(--tabbar-progress-color, #73f0bb);
+  stroke-linecap: round;
+  stroke-dasharray: var(--tabbar-progress-value, 0) 100;
+  transition: stroke-dasharray 0.16s linear;
 }
 
 .tabbar > *:not(.tabbar-ring) {
@@ -359,7 +463,7 @@ onMounted(async () => {
   border-radius: 8px;
   overflow: hidden;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--tabbar-cover-bg, rgba(255, 255, 255, 0.1));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -381,7 +485,7 @@ onMounted(async () => {
   margin: 0;
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--tabbar-fg-primary, var(--text-primary));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -391,7 +495,7 @@ onMounted(async () => {
 .center-artist {
   margin: 2px 0 0;
   font-size: 11px;
-  color: var(--text-tertiary);
+  color: var(--tabbar-fg-secondary, var(--text-tertiary));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -402,12 +506,12 @@ onMounted(async () => {
   height: 34px;
   border-radius: 50%;
   border: none;
-  background: color-mix(in srgb, var(--dominant-color, #1fd6ff) 25%, rgba(255, 255, 255, 0.1));
+  background: var(--tabbar-control-bg, color-mix(in srgb, var(--dominant-color, #1fd6ff) 25%, rgba(255, 255, 255, 0.1)));
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--text-primary);
+  color: var(--tabbar-fg-primary, var(--text-primary));
   flex-shrink: 0;
   transition:
     transform 0.15s ease,
@@ -429,7 +533,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #fff;
+  color: var(--tabbar-fg-primary, #fff);
   margin: auto;
   transition:
     transform 0.15s ease,
@@ -446,7 +550,7 @@ onMounted(async () => {
   justify-content: center;
   gap: 8px;
   width: 100%;
-  color: var(--text-tertiary);
+  color: var(--tabbar-fg-secondary, var(--text-tertiary));
   font-size: 12px;
 }
 </style>

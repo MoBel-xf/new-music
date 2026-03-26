@@ -66,9 +66,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { searchAllSources } from '@/api'
+import { useColorExtract } from '@/composables/useColorExtract'
+import { useAppConfigStore } from '@/stores/appConfig'
 import { useSearchStore } from '@/stores/search'
 import TrackItem from '@/components/TrackItem.vue'
 import TrackActionSheet from '@/components/TrackActionSheet.vue'
@@ -79,7 +81,9 @@ import { dbGetHomeRecommend, dbSetHomeRecommend } from '@/utils/db'
 defineOptions({ name: 'HomePage' })
 
 const router = useRouter()
+const appConfig = useAppConfigStore()
 const searchStore = useSearchStore()
+const { prefetch } = useColorExtract()
 
 const HOT_KEYWORDS = ['周杰伦', 'Taylor Swift', '轻音乐', '林俊杰', '邓紫棋', 'lo-fi', '陈奕迅', '五月天', 'Billie Eilish', '刀郎']
 
@@ -88,6 +92,8 @@ const loadingRecommend = ref(false)
 const recommendTracks = ref<Track[]>([])
 const showAction = ref(false)
 const actionTrack = ref<Track | null>(null)
+
+const homeRecommendCacheKey = computed(() => `${appConfig.homeQueryKeyword}:${appConfig.homeQueryLimit}`)
 
 function goToSearchPage(keyword?: string) {
   router.push({
@@ -100,11 +106,12 @@ async function loadRecommend(force = false) {
   if (loadingRecommend.value) return
   if (!force && recommendTracks.value.length) return
   loadingRecommend.value = true
-  const kw = HOT_KEYWORDS[Math.floor(Math.random() * HOT_KEYWORDS.length)]
+  const kw = appConfig.homeQueryKeyword
   try {
-    const tracks = await searchAllSources({ keyword: kw, limit: searchStore.perSourceLimit }, searchStore.getEnabledSources())
+    const tracks = await searchAllSources({ keyword: kw, limit: appConfig.homeQueryLimit }, searchStore.getEnabledSources())
     recommendTracks.value = tracks
-    await dbSetHomeRecommend(tracks)
+    void prefetch(tracks.slice(0, appConfig.colorPrefetchCount).map((track) => track.cover))
+    await dbSetHomeRecommend(tracks, homeRecommendCacheKey.value)
   } catch {
     recommendTracks.value = []
   } finally {
@@ -123,12 +130,24 @@ function openAction(track: Track) {
 }
 
 onMounted(async () => {
-  const cached = await dbGetHomeRecommend()
+  const cached = await dbGetHomeRecommend(homeRecommendCacheKey.value)
   if (cached?.length) {
     recommendTracks.value = cached
+    void prefetch(cached.slice(0, appConfig.colorPrefetchCount).map((track) => track.cover))
     return
   }
   loadRecommend()
+})
+
+watch(homeRecommendCacheKey, async () => {
+  const cached = await dbGetHomeRecommend(homeRecommendCacheKey.value)
+  if (cached?.length) {
+    recommendTracks.value = cached
+    void prefetch(cached.slice(0, appConfig.colorPrefetchCount).map((track) => track.cover))
+    return
+  }
+  recommendTracks.value = []
+  void loadRecommend(true)
 })
 </script>
 
@@ -160,11 +179,14 @@ onMounted(async () => {
   flex-direction: column;
   min-height: 0;
   padding-top: calc(env(safe-area-inset-top, 0px) + 4px);
-  background: color-mix(in srgb, var(--bg-sheet) 74%, transparent);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.035);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  background: radial-gradient(circle at 50% 100%, var(--dominant-tint-1) 0%, transparent 60%), color-mix(in srgb, var(--bg-sheet) 74%, transparent);
+  border-bottom: 1px solid var(--dominant-border);
+  box-shadow: var(--dominant-glow);
   backdrop-filter: blur(26px) saturate(145%);
   -webkit-backdrop-filter: blur(26px) saturate(145%);
+  transition:
+    border-color 0.5s ease,
+    box-shadow 0.5s ease;
 }
 
 .home-search {
@@ -276,8 +298,8 @@ onMounted(async () => {
 .refresh-btn {
   width: 38px;
   height: 38px;
-  border: 1px solid var(--line-soft);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--dominant-border);
+  background: var(--dominant-tint-1);
   border-radius: 50%;
   font-size: 16px;
   cursor: pointer;
@@ -304,8 +326,8 @@ onMounted(async () => {
 .keyword-tag {
   flex-shrink: 0;
   padding: 9px 16px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--line-soft);
+  background: var(--dominant-tint-1);
+  border: 1px solid var(--dominant-border);
   border-radius: var(--radius-full);
   font-size: 13px;
   font-weight: 600;
@@ -320,13 +342,13 @@ onMounted(async () => {
 }
 .keyword-tag:active {
   transform: scale(0.98);
-  background: color-mix(in srgb, var(--dominant-color) 18%, rgba(255, 255, 255, 0.06));
-  border-color: color-mix(in srgb, var(--dominant-color) 32%, var(--line-soft));
-  color: color-mix(in srgb, var(--dominant-color) 78%, white);
+  background: var(--dominant-tint-3);
+  border-color: var(--dominant-border-strong);
+  color: var(--dominant-text);
 }
 
 :deep(.van-field__left-icon) {
-  color: color-mix(in srgb, var(--dominant-color) 72%, white);
+  color: var(--dominant-accent);
 }
 :deep(.van-field__control::placeholder) {
   color: var(--text-secondary);
@@ -340,13 +362,14 @@ onMounted(async () => {
 
 /* 列表项的包裹态对齐 */
 .track-row-wrap {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: var(--surface-1);
   border: 1px solid var(--line-soft);
   border-radius: 20px;
   margin-bottom: 10px;
   overflow: hidden;
+  transition:
+    border-color 0.5s ease,
+    background 0.5s ease;
 }
 
 .skeleton-item {
@@ -355,7 +378,7 @@ onMounted(async () => {
   padding: 10px 16px;
   gap: 12px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--surface-1);
   border: 1px solid var(--line-soft);
   margin-bottom: 10px;
 }

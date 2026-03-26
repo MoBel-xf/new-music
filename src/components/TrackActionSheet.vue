@@ -145,13 +145,13 @@ async function play() {
 <style scoped>
 /* Soda-style overrides for Vant ActionSheet */
 :global(.soda-action-sheet) {
-  background: rgba(18, 18, 20, 0.75) !important;
+  background: radial-gradient(circle at 50% 0%, var(--dominant-tint-3) 0%, transparent 40%), rgba(18, 18, 20, 0.75) !important;
   backdrop-filter: blur(28px) saturate(150%);
   -webkit-backdrop-filter: blur(28px) saturate(150%);
   border-top-left-radius: 28px !important;
   border-top-right-radius: 28px !important;
   color: #fff;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--dominant-border) !important;
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
   overflow: hidden;
 }
@@ -183,7 +183,7 @@ async function play() {
   align-items: center;
   gap: 16px;
   padding-bottom: 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--dominant-border);
   margin-bottom: 20px;
 }
 
@@ -279,10 +279,10 @@ async function play() {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--dominant-tint-2);
   font-size: 22px;
   color: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--dominant-border);
   transition: all 0.3s ease;
 }
 
@@ -295,7 +295,7 @@ async function play() {
   background: linear-gradient(135deg, var(--brand-from, #1fd6ff) 0%, var(--brand-to, #00ffcc) 100%);
   color: #000;
   border: none;
-  box-shadow: 0 6px 16px color-mix(in srgb, var(--brand-from, #1fd6ff) 40%, transparent);
+  box-shadow: var(--dominant-glow-strong);
 }
 
 .ai-label {
@@ -327,7 +327,7 @@ async function play() {
   font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
-  border-bottom: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--dominant-border);
 }
 .picker-close {
   width: 32px;
@@ -369,8 +369,8 @@ async function play() {
   transition: all 0.2s ease;
   border-radius: 16px;
   margin: 4px 16px;
-  border: 1px solid var(--line-soft);
-  background: var(--surface-1);
+  border: 1px solid var(--dominant-border);
+  background: var(--dominant-tint-1);
 }
 .picker-item:active {
   transform: scale(0.96);

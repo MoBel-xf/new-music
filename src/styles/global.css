@@ -26,7 +26,10 @@ body,
 }
 
 body {
-  background: radial-gradient(circle at top, color-mix(in srgb, var(--dominant-color) 8%, transparent) 0%, transparent 28%), var(--bg-base);
+  background:
+    radial-gradient(circle at 30% 0%, var(--dominant-tint-2) 0%, transparent 36%),
+    radial-gradient(circle at 80% 100%, var(--dominant-tint-1) 0%, transparent 28%), var(--bg-base);
+  transition: background 0.5s ease;
 }
 
 /* 滚动条美化 */
@@ -78,14 +81,15 @@ a {
 
 /* 全局弹窗样式 */
 .van-popup--bottom {
-  background: color-mix(in srgb, var(--bg-sheet) 92%, transparent) !important;
+  background:
+    radial-gradient(circle at 50% 0%, var(--dominant-tint-2) 0%, transparent 50%), color-mix(in srgb, var(--bg-sheet) 92%, transparent) !important;
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  border: var(--glass-border);
+  border: 1px solid var(--dominant-border);
   border-bottom: none;
   color: var(--glass-text-color);
   border-radius: var(--glass-radius) var(--glass-radius) 0 0;
-  box-shadow: var(--glass-shadow);
+  box-shadow: var(--dominant-glow);
 }
 
 .van-action-sheet {
@@ -101,13 +105,14 @@ a {
 }
 
 .van-dialog {
-  background: color-mix(in srgb, var(--bg-sheet) 95%, transparent) !important;
+  background:
+    radial-gradient(circle at 50% 20%, var(--dominant-tint-3) 0%, transparent 60%), color-mix(in srgb, var(--bg-sheet) 95%, transparent) !important;
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  border: var(--glass-border);
+  border: 1px solid var(--dominant-border);
   color: var(--glass-text-color);
   border-radius: var(--glass-radius);
-  box-shadow: var(--glass-shadow);
+  box-shadow: var(--dominant-glow-strong);
 }
 
 /* Toast 独立样式，避免深浅色下文字和背景重叠 */
@@ -161,7 +166,12 @@ a {
   background: var(--bg-active) !important;
 }
 
-.van-dialog__confirm,
+.van-dialog__confirm {
+  background: var(--dominant-tint-3) !important;
+  color: var(--dominant-text);
+  transition: all 0.2s ease;
+  font-weight: 600;
+}
 .van-dialog__cancel {
   background: var(--bg-active) !important;
   color: var(--glass-text-color);
@@ -212,14 +222,14 @@ a {
 
 /* overlay遮罩优化 */
 .van-overlay {
-  background: rgba(5, 7, 12, 0.42);
+  background: color-mix(in srgb, var(--dominant-color) 4%, rgba(5, 7, 12, 0.42));
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
 }
 
 /* Loading加载动画颜色 */
 .van-loading__spinner {
-  color: color-mix(in srgb, var(--dominant-color) 72%, white);
+  color: var(--dominant-accent);
 }
 
 /* 主按钮风格 */

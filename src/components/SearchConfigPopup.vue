@@ -86,8 +86,11 @@ function toggleSource(src: MusicSource) {
   margin-top: 14px;
   padding: 14px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--line-soft);
+  background: var(--dominant-tint-1);
+  border: 1px solid var(--dominant-border);
+  transition:
+    border-color 0.5s ease,
+    background 0.5s ease;
 }
 
 .config-label {
@@ -115,8 +118,8 @@ function toggleSource(src: MusicSource) {
   gap: 6px;
   padding: 8px 12px;
   border-radius: var(--radius-full);
-  border: 1px solid var(--line-soft);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--dominant-border);
+  background: var(--dominant-tint-1);
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
@@ -145,18 +148,22 @@ function toggleSource(src: MusicSource) {
 }
 
 .limit-btn {
-  border: 1px solid var(--line-soft);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--dominant-border);
+  background: var(--dominant-tint-1);
   border-radius: var(--radius-full);
   padding: 8px 14px;
   font-size: 12px;
   color: var(--text-secondary);
   font-weight: 600;
+  transition:
+    border-color 0.5s ease,
+    background 0.5s ease,
+    color 0.3s ease;
 }
 
 .limit-btn.active {
-  border-color: color-mix(in srgb, var(--dominant-color) 34%, var(--line-soft));
-  background: color-mix(in srgb, var(--dominant-color) 18%, rgba(255, 255, 255, 0.06));
-  color: color-mix(in srgb, var(--dominant-color) 78%, white);
+  border-color: var(--dominant-border-strong);
+  background: var(--dominant-tint-3);
+  color: var(--dominant-text);
 }
 </style>

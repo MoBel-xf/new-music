@@ -265,13 +265,16 @@ function openAction(track: Track) {
   gap: 10px;
   margin: 12px 12px 0;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.05);
+  background: radial-gradient(circle at 50% 0%, var(--dominant-tint-2) 0%, transparent 50%), rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  border: 1px solid var(--line-soft);
+  border: 1px solid var(--dominant-border);
   border-radius: 22px;
   flex-shrink: 0;
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--dominant-glow);
+  transition:
+    border-color 0.5s ease,
+    box-shadow 0.5s ease;
 }
 .play-all-btn {
   flex: 1;
@@ -283,17 +286,20 @@ function openAction(track: Track) {
   padding: 10px 0;
   border-radius: var(--radius-full);
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(255, 107, 107, 0.35);
+  box-shadow: var(--dominant-glow-strong);
 }
 .shuffle-btn {
-  border: 1px solid var(--line-soft);
-  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--dominant-border);
+  background: var(--dominant-tint-1);
   color: var(--text-primary);
   font-size: 13px;
   font-weight: 600;
   padding: 9px 16px;
   border-radius: var(--radius-full);
   cursor: pointer;
+  transition:
+    border-color 0.5s ease,
+    background 0.5s ease;
 }
 .play-all-btn:disabled,
 .shuffle-btn:disabled {
@@ -301,13 +307,16 @@ function openAction(track: Track) {
   cursor: default;
 }
 .edit-btn {
-  border: 1px solid var(--line-soft);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--dominant-border);
+  background: var(--dominant-tint-1);
   font-size: 13px;
   color: var(--text-primary);
   padding: 9px 14px;
   border-radius: var(--radius-full);
   cursor: pointer;
+  transition:
+    border-color 0.5s ease,
+    background 0.5s ease;
 }
 .edit-done-btn {
   border: none;
@@ -333,19 +342,23 @@ function openAction(track: Track) {
   padding: 48px 20px;
   font-size: 15px;
   color: var(--text-tertiary);
-  border: 1px dashed var(--line-soft);
+  border: 1px dashed var(--dominant-border);
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--dominant-tint-1);
+  transition:
+    border-color 0.5s ease,
+    background 0.5s ease;
 }
 
 .track-row-wrap {
-  background: rgba(255, 255, 255, 0.04);
+  background: radial-gradient(circle at 90% 20%, var(--dominant-tint-1) 0%, transparent 40%), rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  border: 1px solid var(--line-soft);
+  border: 1px solid var(--dominant-border);
   border-radius: 20px;
   margin-bottom: 10px;
   overflow: hidden;
+  transition: border-color 0.5s ease;
 }
 .track-row.editing {
   display: flex;
@@ -393,12 +406,15 @@ function openAction(track: Track) {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid var(--line-soft);
+  background: radial-gradient(circle at 50% 0%, var(--dominant-tint-2) 0%, transparent 60%), rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--dominant-border);
   border-radius: 22px;
-  box-shadow: var(--glass-shadow);
+  box-shadow: var(--dominant-glow-strong);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
+  transition:
+    border-color 0.5s ease,
+    box-shadow 0.5s ease;
 }
 .sel-count {
   font-size: 14px;

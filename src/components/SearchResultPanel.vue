@@ -117,10 +117,9 @@ function openAction(track: Track) {
   padding: 10px 16px;
   margin-bottom: 18px;
   border-radius: 28px;
-  background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--dominant-color) 16%, transparent) 0%, transparent 26%), rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--line-soft);
-  box-shadow: var(--shadow-card);
+  background: radial-gradient(circle at top right, var(--dominant-tint-3) 0%, transparent 26%), rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--dominant-border);
+  box-shadow: var(--dominant-glow);
 }
 
 .loading-card,
@@ -136,8 +135,8 @@ function openAction(track: Track) {
   padding: 0 12px;
   margin-bottom: 14px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--dominant-color) 18%, rgba(255, 255, 255, 0.08));
-  color: color-mix(in srgb, var(--dominant-color) 76%, white);
+  background: var(--dominant-tint-3);
+  color: var(--dominant-text);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -176,8 +175,8 @@ function openAction(track: Track) {
   gap: 12px;
   padding: 12px 14px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--dominant-tint-1);
+  border: 1px solid var(--dominant-border);
 }
 
 .loading-cover,
@@ -215,8 +214,8 @@ function openAction(track: Track) {
 
 .hot-tag {
   padding: 10px 16px;
-  border: 1px solid var(--line-soft);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--dominant-border);
+  background: var(--dominant-tint-1);
   border-radius: var(--radius-full);
   font-size: 14px;
   font-weight: 600;
@@ -231,9 +230,9 @@ function openAction(track: Track) {
 
 .hot-tag:active {
   transform: scale(0.98);
-  background: color-mix(in srgb, var(--dominant-color) 16%, rgba(255, 255, 255, 0.06));
-  border-color: color-mix(in srgb, var(--dominant-color) 30%, var(--line-soft));
-  color: color-mix(in srgb, var(--dominant-color) 78%, white);
+  background: var(--dominant-tint-3);
+  border-color: var(--dominant-border-strong);
+  color: var(--dominant-text);
 }
 
 .result-list {
@@ -252,22 +251,26 @@ function openAction(track: Track) {
   margin: 0 8px 10px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-primary);
-  background: color-mix(in srgb, var(--dominant-color) 12%, rgba(255, 255, 255, 0.04));
-  border: 1px solid color-mix(in srgb, var(--dominant-color) 18%, var(--line-soft));
+  color: var(--dominant-text);
+  background: var(--dominant-tint-2);
+  border: 1px solid var(--dominant-border);
   border-radius: var(--radius-full);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition:
+    color 0.5s ease,
+    background 0.5s ease,
+    border-color 0.5s ease;
 }
 
 .result-row-wrap {
   margin-bottom: 10px;
   border-radius: 20px;
-  border: 1px solid color-mix(in srgb, var(--line-soft) 86%, rgba(255, 255, 255, 0.04));
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.035)), color-mix(in srgb, var(--bg-card) 92%, transparent);
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.14);
-  backdrop-filter: blur(18px) saturate(120%);
-  -webkit-backdrop-filter: blur(18px) saturate(120%);
+  border: 1px solid var(--line-soft);
+  background: var(--surface-1);
   overflow: hidden;
+  transition:
+    border-color 0.5s ease,
+    background 0.5s ease;
 }
 
 :deep(.van-list__finished-text),
@@ -276,8 +279,7 @@ function openAction(track: Track) {
 }
 
 :global(:root[data-theme='light']) .result-row-wrap {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.9)), var(--bg-card);
-  box-shadow: 0 12px 24px rgba(20, 28, 40, 0.08);
+  box-shadow: 0 12px 24px rgba(20, 28, 40, 0.06);
 }
 
 @keyframes panel-shimmer {

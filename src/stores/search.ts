@@ -10,6 +10,8 @@ import * as kuwoApi from '@/api/kuwo'
 import type { SearchOptions } from '@/types/music'
 
 const SEARCH_PREFS_KEY = 'pikachu-search-prefs-v1'
+const SEARCH_HISTORY_KEY = 'pikachu-search-history-v1'
+const SEARCH_HISTORY_LIMIT = 12
 
 interface SearchPrefs {
   enabledSources: MusicSource[]
@@ -26,6 +28,7 @@ const apiMap: Record<MusicSource, { searchSongs: (o: SearchOptions) => Promise<T
 export const useSearchStore = defineStore('search', () => {
   const keyword = ref('')
   const results = ref<Track[]>([])
+  const historyKeywords = ref<string[]>([])
   const trackMap = reactive(new Map<string, Track>())
 
   const enabledSources = reactive<Record<MusicSource, boolean>>({
@@ -74,6 +77,22 @@ export const useSearchStore = defineStore('search', () => {
     }
   }
 
+  function loadHistory() {
+    if (typeof window === 'undefined') return
+    try {
+      const raw = window.localStorage.getItem(SEARCH_HISTORY_KEY)
+      if (!raw) return
+      const history = JSON.parse(raw)
+      if (!Array.isArray(history)) return
+      historyKeywords.value = history
+        .map((item) => String(item).trim())
+        .filter(Boolean)
+        .slice(0, SEARCH_HISTORY_LIMIT)
+    } catch {
+      historyKeywords.value = []
+    }
+  }
+
   function savePrefs() {
     if (typeof window === 'undefined') return
     const prefs: SearchPrefs = {
@@ -83,6 +102,29 @@ export const useSearchStore = defineStore('search', () => {
     window.localStorage.setItem(SEARCH_PREFS_KEY, JSON.stringify(prefs))
   }
 
+  function saveHistory() {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(historyKeywords.value))
+  }
+
+  function pushHistory(rawKeyword: string) {
+    const normalizedKeyword = rawKeyword.trim()
+    if (!normalizedKeyword) return
+
+    historyKeywords.value = [normalizedKeyword, ...historyKeywords.value.filter((item) => item !== normalizedKeyword)].slice(0, SEARCH_HISTORY_LIMIT)
+    saveHistory()
+  }
+
+  function removeHistory(keywordToRemove: string) {
+    historyKeywords.value = historyKeywords.value.filter((item) => item !== keywordToRemove)
+    saveHistory()
+  }
+
+  function clearHistory() {
+    historyKeywords.value = []
+    saveHistory()
+  }
+
   function getEnabledSources(): MusicSource[] {
     return (Object.keys(enabledSources) as MusicSource[]).filter((k) => enabledSources[k] && AVAILABLE_SOURCES.includes(k))
   }
@@ -90,6 +132,7 @@ export const useSearchStore = defineStore('search', () => {
   async function search(kw: string) {
     if (!kw.trim()) return
     keyword.value = kw.trim()
+    pushHistory(keyword.value)
     results.value = []
     trackMap.clear()
     ;(Object.keys(perSourcePage) as MusicSource[]).forEach((k) => (perSourcePage[k] = 1))
@@ -157,6 +200,7 @@ export const useSearchStore = defineStore('search', () => {
   }
 
   loadPrefs()
+  loadHistory()
 
   watch([perSourceLimit, () => enabledSources.migu, () => enabledSources.netease, () => enabledSources.qq, () => enabledSources.kuwo], () => {
     savePrefs()
@@ -165,6 +209,7 @@ export const useSearchStore = defineStore('search', () => {
   return {
     keyword,
     results,
+    historyKeywords,
     enabledSources,
     perSourceLimit,
     isLoading,
@@ -172,6 +217,8 @@ export const useSearchStore = defineStore('search', () => {
     search,
     loadMore,
     updateTrack,
+    removeHistory,
+    clearHistory,
     reset,
     getEnabledSources
   }

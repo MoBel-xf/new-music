@@ -6,6 +6,7 @@ const DEFAULT_COLOR = '#2C2C2C'
 const CACHE_LIMIT = 80
 const IMG_PROXY_BASE = import.meta.env.VITE_IMG_PROXY_BASE || ''
 const cache = new Map<string, string>()
+const pendingTasks = new Map<string, Promise<string>>()
 
 const FALLBACK_IMAGE_PROXIES = [
   (url: string) => `https://wsrv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//i, ''))}`,
@@ -18,33 +19,67 @@ export function useColorExtract() {
 
   async function extract(imageUrl: string): Promise<string> {
     if (!imageUrl) return DEFAULT_COLOR
-    if (cache.has(imageUrl)) {
-      const cachedColor = cache.get(imageUrl)!
-      cache.delete(imageUrl)
-      cache.set(imageUrl, cachedColor)
+    const cachedColor = peek(imageUrl)
+    if (cachedColor) {
       dominantColor.value = cachedColor
       return dominantColor.value
     }
 
+    if (pendingTasks.has(imageUrl)) {
+      const color = await pendingTasks.get(imageUrl)!
+      dominantColor.value = color
+      return color
+    }
+
     isExtracting.value = true
+    const task = extractFromUrl(imageUrl)
+    pendingTasks.set(imageUrl, task)
     try {
-      const color = await extractFromUrl(imageUrl)
-      cache.set(imageUrl, color)
-      if (cache.size > CACHE_LIMIT) {
-        const oldest = cache.keys().next().value
-        if (oldest) cache.delete(oldest)
-      }
+      const color = await task
+      remember(imageUrl, color)
       dominantColor.value = color
       return color
     } catch {
       dominantColor.value = DEFAULT_COLOR
       return DEFAULT_COLOR
     } finally {
+      pendingTasks.delete(imageUrl)
       isExtracting.value = false
     }
   }
 
-  return { dominantColor, isExtracting, extract }
+  async function prefetch(imageUrls: Array<string | undefined | null>) {
+    const urls = imageUrls.filter((item): item is string => Boolean(item && item.trim()))
+    await Promise.all(
+      urls.map(async (url) => {
+        if (peek(url) || pendingTasks.has(url)) return
+        try {
+          const color = await extract(url)
+          remember(url, color)
+        } catch {
+          // 预热失败不影响主流程
+        }
+      })
+    )
+  }
+
+  return { dominantColor, isExtracting, extract, peek, prefetch }
+}
+
+function remember(imageUrl: string, color: string) {
+  cache.set(imageUrl, color)
+  if (cache.size > CACHE_LIMIT) {
+    const oldest = cache.keys().next().value
+    if (oldest) cache.delete(oldest)
+  }
+}
+
+function peek(imageUrl: string) {
+  if (!cache.has(imageUrl)) return null
+  const cachedColor = cache.get(imageUrl)!
+  cache.delete(imageUrl)
+  cache.set(imageUrl, cachedColor)
+  return cachedColor
 }
 
 function extractFromUrl(url: string): Promise<string> {

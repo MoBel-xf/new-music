@@ -172,9 +172,11 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { searchAllSources } from '@/api'
+import { useAppConfigStore } from '@/stores/appConfig'
 import { usePlayerStore } from '@/stores/player'
 import { usePlaylistStore } from '@/stores/playlist'
 import { formatTime } from '@/utils/format'
+import { parseColor, mixColor } from '@/utils/color'
 import { showToast } from 'vant'
 import type { LyricLine, PlayMode, Track } from '@/types/music'
 import Icon from '@/components/Icon.vue'
@@ -185,6 +187,7 @@ defineOptions({ name: 'PlayPage' })
 const HOT_KEYWORD_CACHE_KEY = 'pika-play-hot-keyword'
 
 const router = useRouter()
+const appConfig = useAppConfigStore()
 const player = usePlayerStore()
 const playlistStore = usePlaylistStore()
 
@@ -200,43 +203,14 @@ const viewportHeight = ref(typeof window !== 'undefined' ? (window.visualViewpor
 let lyricZoneObserver: ResizeObserver | null = null
 
 function readCachedHotKeyword() {
-  if (typeof window === 'undefined') return '抖音热歌'
+  if (typeof window === 'undefined') return appConfig.playQueryKeyword
   const cached = window.localStorage.getItem(HOT_KEYWORD_CACHE_KEY)
-  return cached?.trim() || '抖音热歌'
+  return cached?.trim() || appConfig.playQueryKeyword
 }
 
 function cacheHotKeyword(keyword: string) {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(HOT_KEYWORD_CACHE_KEY, keyword)
-}
-
-function parseColor(color: string) {
-  if (color.startsWith('#')) {
-    const hex = color.replace('#', '')
-    const normalized =
-      hex.length === 3
-        ? hex
-            .split('')
-            .map((segment) => `${segment}${segment}`)
-            .join('')
-        : hex
-    if (normalized.length !== 6) return null
-    return [0, 2, 4].map((start) => parseInt(normalized.substring(start, start + 2), 16))
-  }
-
-  const match = color.match(/\d+(?:\.\d+)?/g)
-  if (!match || match.length < 3) return null
-  return match.slice(0, 3).map(Number)
-}
-
-function mixColor(source: string, target: string, weight: number) {
-  const from = parseColor(source)
-  const to = parseColor(target)
-  if (!from || !to) return source
-
-  const ratio = Math.max(0, Math.min(1, weight))
-  const mixed = from.map((channel, index) => Math.round(channel * (1 - ratio) + to[index] * ratio))
-  return `rgb(${mixed[0]}, ${mixed[1]}, ${mixed[2]})`
 }
 
 let swipeTouchStartY = 0
@@ -417,7 +391,10 @@ async function toggleFav() {
 const MODE_ICONS: Record<PlayMode, string> = { list: 'list', single: 'single', shuffle: 'shuffle' }
 const modeIcon = computed(() => `icon-${MODE_ICONS[player.playMode]}`)
 
-const hotKeywordOptions = ['爆火', '流行', '热歌', '热门单曲', '抖音热歌', '华语流行', '飙升榜', '新歌榜', '网络热歌', '年度热单']
+const hotKeywordOptions = computed(() => {
+  const defaults = ['爆火', '流行', '热歌', '热门单曲', '抖音热歌', '华语流行', '飙升榜', '新歌榜', '网络热歌', '年度热单']
+  return Array.from(new Set([appConfig.playQueryKeyword, ...defaults].filter(Boolean)))
+})
 
 function cycleMode() {
   const order: PlayMode[] = ['list', 'single', 'shuffle']
@@ -427,7 +404,7 @@ function cycleMode() {
 async function pickRecommendKeyword(keyword: string) {
   showModePicker.value = false
   try {
-    const tracks = await searchAllSources({ keyword, limit: 12 })
+    const tracks = await searchAllSources({ keyword, limit: appConfig.playQueryLimit })
     if (!tracks.length) {
       showToast(`未找到“${keyword}”相关歌曲`)
       return
@@ -894,7 +871,7 @@ watch(
   border: none;
   padding: 0;
   background: transparent;
-  color: rgba(255, 255, 255, 0.42);
+  color: var(--page-text-secondary);
   font-size: 1.16rem;
   line-height: 1.5;
   font-weight: 500;
@@ -905,14 +882,14 @@ watch(
 }
 
 .lyric-line.active {
-  color: #fff;
+  color: var(--page-text-primary);
   font-size: 1.4rem;
   font-weight: 700;
   transform: scale(1.02);
 }
 
 .lyric-empty {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--page-text-secondary);
   font-size: 1rem;
   text-align: left;
 }

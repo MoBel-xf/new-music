@@ -64,11 +64,17 @@ function onImgError(e: Event) {
 }
 
 async function onPlay() {
-  const q = props.queue ?? [props.track]
-  await player.playTrack(props.track, q, {
-    type: (props.contextType as any) ?? 'results',
-    playlistId: props.contextId
-  })
+  const contextType = (props.contextType as any) ?? 'results'
+  if (contextType === 'results') {
+    // 搜索结果：插入当前歌曲，不替换播放列表
+    await player.insertAndPlay(props.track)
+  } else {
+    const q = props.queue ?? [props.track]
+    await player.playTrack(props.track, q, {
+      type: contextType,
+      playlistId: props.contextId
+    })
+  }
   router.push({ name: 'play' })
 }
 
@@ -92,7 +98,7 @@ function onLongPress() {
   background: var(--surface-1);
 }
 .track-item.active {
-  background: color-mix(in srgb, var(--dominant-color) 14%, transparent);
+  background: var(--dominant-tint-3);
 }
 
 .cover-wrap {
@@ -122,7 +128,7 @@ function onLongPress() {
 .playing-overlay {
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--dominant-color) 46%, transparent);
+  background: var(--dominant-muted);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -159,7 +165,7 @@ function onLongPress() {
   text-overflow: ellipsis;
 }
 .title-active {
-  color: color-mix(in srgb, var(--dominant-color) 78%, white);
+  color: var(--dominant-text);
   font-weight: 700;
 }
 .sub {

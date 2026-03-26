@@ -4,12 +4,41 @@ import { ref, computed, watch } from 'vue'
 import type { Track, LyricLine, PlayMode, PlayContext } from '@/types/music'
 import { parseLrc, findCurrentLyricIndex } from '@/utils/lyric'
 import { fetchTrackDetails } from '@/api'
-import { dbSetCachedTrack, dbGetCachedTrack } from '@/utils/db'
+import { dbSetCachedTrack, dbGetCachedTrack, dbDeleteCachedTrack } from '@/utils/db'
+import { computeDominantVars } from '@/utils/color'
 import { showToast } from 'vant'
 import { useColorExtract } from '@/composables/useColorExtract'
+import { useAppConfigStore } from '@/stores/appConfig'
 
+const PLAYER_SESSION_KEY = 'pikachu-player-session-v1'
+
+interface PlayerSessionSnapshot {
+  currentTrack: Track | null
+  queue: Track[]
+  playContext: PlayContext
+  playMode: PlayMode
+  currentTime: number
+  volume: number
+  muted: boolean
+  dominantColor: string
+}
+
+/** 设置主导色及全部衍生变量（参考 tabbar 的亮暗自适应策略） */
 function applyDominantColor(color: string) {
-  document.documentElement.style.setProperty('--dominant-color', color)
+  const el = document.documentElement
+  el.style.setProperty('--dominant-color', color)
+  // 根据当前主题 + 主导色亮度计算衍生变量
+  const isDark = el.getAttribute('data-theme') !== 'light'
+  const isDominant = el.hasAttribute('data-immersive')
+  const vars = computeDominantVars(color, isDark, isDominant)
+  for (const [key, val] of Object.entries(vars)) {
+    el.style.setProperty(key, val)
+  }
+  // dominant 模式：覆盖全局文字颜色以适应主导色亮暗
+  if (isDominant && vars['--dominant-page-text']) {
+    el.style.setProperty('--text-primary', vars['--dominant-page-text'])
+    el.style.setProperty('--text-secondary', vars['--dominant-page-text-secondary'] || vars['--dominant-page-text'])
+  }
 }
 
 function hasMediaSessionSupport() {
@@ -17,6 +46,8 @@ function hasMediaSessionSupport() {
 }
 
 export const usePlayerStore = defineStore('player', () => {
+  const appConfig = useAppConfigStore()
+
   // ── State ────────────────────────────────────────────────────────────────
   const currentTrack = ref<Track | null>(null)
   const queue = ref<Track[]>([])
@@ -32,22 +63,130 @@ export const usePlayerStore = defineStore('player', () => {
   const currentLyricIndex = ref(-1)
   const dominantColor = ref('#FF6B6B')
   const isLoadingDetails = ref(false)
+  let isRestoringSession = false
+  let sessionSaveTimer: ReturnType<typeof setTimeout> | null = null
+  let currentColorTaskId = 0
 
   // ── 颜色提取 ─────────────────────────────────────────────────────────────
-  const { extract } = useColorExtract()
+  const { extract, peek, prefetch } = useColorExtract()
 
-  // 监听封面变化，提取主色调
+  async function syncTrackColor(coverUrl?: string) {
+    const taskId = ++currentColorTaskId
+    if (!coverUrl) {
+      dominantColor.value = '#FF6B6B'
+      applyDominantColor('#FF6B6B')
+      scheduleSessionSave()
+      return
+    }
+
+    const cachedColor = peek(coverUrl)
+    if (cachedColor) {
+      dominantColor.value = cachedColor
+      applyDominantColor(cachedColor)
+      scheduleSessionSave()
+      return
+    }
+
+    const color = await extract(coverUrl)
+    if (taskId !== currentColorTaskId || currentTrack.value?.cover !== coverUrl) return
+    dominantColor.value = color
+    applyDominantColor(color)
+    scheduleSessionSave()
+  }
+
+  function collectUpcomingTracks(count: number) {
+    const list = queue.value
+    const idx = currentIndex.value
+    if (!list.length || count <= 0) return [] as Track[]
+    const startIndex = idx >= 0 ? idx : 0
+    const total = Math.min(count, list.length)
+    return Array.from({ length: total }, (_, offset) => list[(startIndex + offset) % list.length]).filter(Boolean)
+  }
+
+  async function warmupTrackVisuals() {
+    const covers = collectUpcomingTracks(appConfig.colorPrefetchCount).map((track) => track.cover)
+    await prefetch(covers)
+  }
+
+  function buildSessionSnapshot(): PlayerSessionSnapshot {
+    return {
+      currentTrack: currentTrack.value ? { ...currentTrack.value } : null,
+      queue: queue.value.map((track) => ({ ...track })),
+      playContext: { ...playContext.value },
+      playMode: playMode.value,
+      currentTime: currentTime.value,
+      volume: volume.value,
+      muted: muted.value,
+      dominantColor: dominantColor.value
+    }
+  }
+
+  function saveSession() {
+    if (typeof window === 'undefined' || isRestoringSession) return
+    try {
+      window.localStorage.setItem(PLAYER_SESSION_KEY, JSON.stringify(buildSessionSnapshot()))
+    } catch {
+      // 忽略持久化失败
+    }
+  }
+
+  function scheduleSessionSave() {
+    if (sessionSaveTimer) return
+    sessionSaveTimer = setTimeout(() => {
+      sessionSaveTimer = null
+      saveSession()
+    }, 240)
+  }
+
+  function restoreSession() {
+    if (typeof window === 'undefined') return
+    try {
+      const raw = window.localStorage.getItem(PLAYER_SESSION_KEY)
+      if (!raw) return
+      const snapshot = JSON.parse(raw) as Partial<PlayerSessionSnapshot>
+      if (!snapshot.currentTrack) return
+
+      isRestoringSession = true
+      currentTrack.value = { ...snapshot.currentTrack }
+      queue.value = Array.isArray(snapshot.queue) ? snapshot.queue.map((track) => ({ ...track })) : [{ ...snapshot.currentTrack }]
+      playContext.value = snapshot.playContext ? { ...snapshot.playContext } : { type: 'results' }
+      playMode.value = snapshot.playMode ?? 'list'
+      volume.value = typeof snapshot.volume === 'number' ? snapshot.volume : 0.8
+      muted.value = Boolean(snapshot.muted)
+      lyricLines.value = parseLrc(snapshot.currentTrack.lrc || '')
+      currentLyricIndex.value = snapshot.currentTime ? findCurrentLyricIndex(lyricLines.value, snapshot.currentTime) : -1
+      currentTime.value = typeof snapshot.currentTime === 'number' ? snapshot.currentTime : 0
+      progress.value = 0
+      dominantColor.value = snapshot.dominantColor || peek(snapshot.currentTrack.cover || '') || '#FF6B6B'
+      applyDominantColor(dominantColor.value)
+
+      if (snapshot.currentTrack.audioUrl) {
+        const audio = getAudio()
+        audio.src = snapshot.currentTrack.audioUrl
+        audio.preload = 'auto'
+        audio.volume = volume.value
+        audio.muted = muted.value
+        const restoreTime = currentTime.value
+        const onLoadedMetadata = () => {
+          audio.currentTime = Math.max(0, Math.min(restoreTime, audio.duration || restoreTime))
+          duration.value = audio.duration || 0
+          progress.value = duration.value > 0 ? currentTime.value / duration.value : 0
+          audio.removeEventListener('loadedmetadata', onLoadedMetadata)
+        }
+        audio.addEventListener('loadedmetadata', onLoadedMetadata)
+      }
+    } catch {
+      // 忽略损坏缓存
+    } finally {
+      isRestoringSession = false
+    }
+  }
+
+  // 监听封面变化，优先命中缓存主色
   watch(
     () => currentTrack.value?.cover,
-    async (url) => {
-      if (url) {
-        const color = await extract(url)
-        dominantColor.value = color
-        applyDominantColor(color)
-      } else {
-        dominantColor.value = '#FF6B6B'
-        applyDominantColor('#FF6B6B')
-      }
+    (url) => {
+      void syncTrackColor(url)
     },
     { immediate: true }
   )
@@ -68,14 +207,17 @@ export const usePlayerStore = defineStore('player', () => {
         progress.value = duration.value > 0 ? currentTime.value / duration.value : 0
         currentLyricIndex.value = findCurrentLyricIndex(lyricLines.value, currentTime.value)
         syncMediaSessionPosition()
+        scheduleSessionSave()
       })
       _audio.addEventListener('play', () => {
         isPlaying.value = true
         syncMediaSessionState()
+        scheduleSessionSave()
       })
       _audio.addEventListener('pause', () => {
         isPlaying.value = false
         syncMediaSessionState()
+        scheduleSessionSave()
       })
       _audio.addEventListener('ended', () => {
         syncMediaSessionState()
@@ -84,11 +226,21 @@ export const usePlayerStore = defineStore('player', () => {
       _audio.addEventListener('error', () => {
         isPlaying.value = false
         syncMediaSessionState()
-        showToast('音频加载失败，请尝试其他音源')
+        // 音频加载失败时清除缓存并重新获取
+        const failedTrack = currentTrack.value
+        if (failedTrack && !failedTrack._retried) {
+          dbDeleteCachedTrack(failedTrack.uid).catch(() => {})
+          const retry: Track = { ...failedTrack, audioUrl: '', detailsLoaded: false, _retried: true }
+          showToast('音频链接失效，正在重新获取…')
+          playTrack(retry)
+        } else {
+          showToast('音频加载失败，请尝试其他音源')
+        }
       })
       _audio.addEventListener('loadedmetadata', () => {
         duration.value = _audio!.duration || 0
         syncMediaSessionPosition()
+        scheduleSessionSave()
       })
     }
     return _audio
@@ -195,11 +347,20 @@ export const usePlayerStore = defineStore('player', () => {
 
   watch(currentTrack, () => {
     syncMediaSessionMetadata()
+    void warmupTrackVisuals()
   })
 
   watch(isPlaying, () => {
     syncMediaSessionState()
   })
+
+  watch(
+    [currentTrack, queue, playContext, playMode, volume, muted],
+    () => {
+      scheduleSessionSave()
+    },
+    { deep: true }
+  )
 
   // ── Computed ──────────────────────────────────────────────────────────────
   const currentIndex = computed(() => queue.value.findIndex((t) => t.uid === currentTrack.value?.uid))
@@ -218,6 +379,12 @@ export const usePlayerStore = defineStore('player', () => {
     if (context) playContext.value = context
 
     let t = track
+
+    const cachedColor = peek(track.cover || '')
+    if (cachedColor) {
+      dominantColor.value = cachedColor
+      applyDominantColor(cachedColor)
+    }
 
     currentTrack.value = { ...track }
     lyricLines.value = parseLrc(track.lrc || '')
@@ -250,6 +417,7 @@ export const usePlayerStore = defineStore('player', () => {
     lyricLines.value = parseLrc(t.lrc || '')
     currentLyricIndex.value = -1
     syncMediaSessionMetadata()
+    void warmupTrackVisuals()
 
     // 所有播放的歌曲都缓存到 IndexedDB
     dbSetCachedTrack(t).catch(() => {})
@@ -274,12 +442,35 @@ export const usePlayerStore = defineStore('player', () => {
     })
   }
 
+  // 搜索场景：插入歌曲到当前播放位置之后并播放，不替换整个队列
+  async function insertAndPlay(track: Track) {
+    const idx = currentIndex.value
+    // 如果队列为空，直接设置
+    if (!queue.value.length) {
+      return playTrack(track, [track], { type: 'results' })
+    }
+    // 去重：如果队列中已存在同 uid 的歌曲先移除
+    const existIdx = queue.value.findIndex((t) => t.uid === track.uid)
+    if (existIdx !== -1) queue.value.splice(existIdx, 1)
+    // 插入到当前歌曲之后
+    const insertAt = idx >= 0 ? idx + 1 : queue.value.length
+    queue.value.splice(insertAt, 0, track)
+    // 播放这首歌（不传 newQueue，保留当前队列）
+    await playTrack(track)
+  }
+
   // 仅加载歌曲信息，不自动播放
   async function loadTrackOnly(track: Track, newQueue?: Track[], context?: PlayContext) {
     if (newQueue) queue.value = newQueue
     if (context) playContext.value = context
 
     let t = track
+
+    const cachedColor = peek(track.cover || '')
+    if (cachedColor) {
+      dominantColor.value = cachedColor
+      applyDominantColor(cachedColor)
+    }
 
     currentTrack.value = { ...track }
     lyricLines.value = parseLrc(track.lrc || '')
@@ -309,6 +500,7 @@ export const usePlayerStore = defineStore('player', () => {
     lyricLines.value = parseLrc(t.lrc || '')
     currentLyricIndex.value = -1
     syncMediaSessionMetadata()
+    void warmupTrackVisuals()
 
     // 所有加载的歌曲都缓存到 IndexedDB
     dbSetCachedTrack(t).catch(() => {})
@@ -425,7 +617,7 @@ export const usePlayerStore = defineStore('player', () => {
 
   // 当前歌曲变化时自动预缓存
   watch(currentTrack, () => {
-    prefetchUpcoming()
+    void prefetchUpcoming(appConfig.prefetchCount)
   })
 
   function setDominantColor(color: string) {
@@ -435,7 +627,10 @@ export const usePlayerStore = defineStore('player', () => {
   function setQueue(tracks: Track[], ctx: PlayContext) {
     queue.value = tracks
     playContext.value = ctx
+    void warmupTrackVisuals()
   }
+
+  restoreSession()
 
   return {
     currentTrack,
@@ -454,6 +649,7 @@ export const usePlayerStore = defineStore('player', () => {
     isLoadingDetails,
     currentIndex,
     playTrack,
+    insertAndPlay,
     loadTrackOnly,
     playNext,
     togglePlayPause,
