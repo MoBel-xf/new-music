@@ -3,11 +3,11 @@ import { computeDominantVars } from '@/utils/color'
 
 export type ThemeMode = 'dark' | 'light' | 'dominant'
 
-const theme = ref<ThemeMode>('dark')
+const theme = ref<ThemeMode>('dominant')
 
 export function useTheme() {
   const initTheme = () => {
-    const saved = localStorage.getItem('pika-theme') as ThemeMode | null
+    const saved = localStorage.getItem('xf-theme') as ThemeMode | null
     if (saved && ['dark', 'light', 'dominant'].includes(saved)) {
       theme.value = saved
     } else {
@@ -19,7 +19,7 @@ export function useTheme() {
   /** 设置指定主题 */
   const setTheme = (mode: ThemeMode) => {
     theme.value = mode
-    localStorage.setItem('pika-theme', mode)
+    localStorage.setItem('xf-theme', mode)
     applyTheme()
   }
 

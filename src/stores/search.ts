@@ -9,8 +9,8 @@ import * as qqApi from '@/api/qq'
 import * as kuwoApi from '@/api/kuwo'
 import type { SearchOptions } from '@/types/music'
 
-const SEARCH_PREFS_KEY = 'pikachu-search-prefs-v1'
-const SEARCH_HISTORY_KEY = 'pikachu-search-history-v1'
+const SEARCH_PREFS_KEY = 'xf-search-prefs-v1'
+const SEARCH_HISTORY_KEY = 'xf-search-history-v1'
 const SEARCH_HISTORY_LIMIT = 12
 
 interface SearchPrefs {

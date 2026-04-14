@@ -95,6 +95,9 @@ export async function fetchDetails(track: Track): Promise<Track> {
   const audioUrl = buildCoverUrl(getField(d, NETEASE_DETAIL_MAP.audioUrl) || '')
   const cover = buildCoverUrl(getField(d, NETEASE_DETAIL_MAP.cover) || track.cover || '')
   const quality = resolveQuality(getField(d, NETEASE_DETAIL_MAP.quality!), getField(d, NETEASE_DETAIL_MAP.kbps!))
+  // interval 为秒数字符串，转为数字作为 duration
+  const rawInterval = d.interval ? Number(d.interval) : 0
+  const duration = rawInterval > 0 && isFinite(rawInterval) ? Math.round(rawInterval) : track.duration
 
   return {
     ...track,
@@ -104,6 +107,7 @@ export async function fetchDetails(track: Track): Promise<Track> {
     cover,
     audioUrl,
     qualityLabel: quality,
+    duration,
     detailsLoaded: true,
     lyricFetched: true
   }

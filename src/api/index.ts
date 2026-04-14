@@ -48,7 +48,10 @@ export async function searchAllSources(opts: SearchOptions, enabledSources?: Mus
  * 按平台分发详情请求
  */
 export async function fetchTrackDetails(track: Track): Promise<Track> {
-  return apiMap[track.source].fetchDetails(track)
+  const result = await apiMap[track.source].fetchDetails(track)
+  // 记录音频链接获取时间，用于判断链接是否过期
+  if (result.audioUrl) result.urlFetchedAt = Date.now()
+  return result
 }
 
 export { AVAILABLE_SOURCES }

@@ -2,7 +2,7 @@
 import { openDB, type IDBPDatabase } from 'idb'
 import type { Track, Playlist } from '@/types/music'
 
-const DB_NAME = 'pikachu-music'
+const DB_NAME = 'xf-music'
 const DB_VERSION = 2
 const TRACK_CACHE_LIMIT = 500
 const HOME_RECOMMEND_KEY = 'home-recommend'
@@ -12,7 +12,7 @@ function buildHomeRecommendKey(cacheKey = 'default') {
 }
 
 // ── IDB Schema 类型 ────────────────────────────────────────────────────────
-interface PikachuDBSchema {
+interface XfDBSchema {
   favorites: {
     key: string
     value: Track
@@ -221,7 +221,7 @@ export async function dbGetCacheStats(): Promise<CacheStats> {
     db.count('favorites'),
     db.count('playlists')
   ])
-  const searchHistory = JSON.parse(localStorage.getItem('pikachu-search-history') || '[]').length
+  const searchHistory = JSON.parse(localStorage.getItem('xf-search-history') || '[]').length
   return { history, trackCache, homeRecommend, favorites, playlists, searchHistory }
 }
 
@@ -238,5 +238,14 @@ export async function dbClearHomeRecommend(): Promise<void> {
 export async function dbClearAllCache(): Promise<void> {
   const db = await getDB()
   await Promise.all([db.clear('history'), db.clear('track_cache'), db.clear('home_recommend')])
-  localStorage.removeItem('pikachu-search-history')
+  localStorage.removeItem('xf-search-history')
+}
+
+/** 彻底清除所有数据，包括收藏、歌单和全部 IndexedDB */
+export async function dbNukeAll(): Promise<void> {
+  const db = await getDB()
+  await Promise.all([db.clear('favorites'), db.clear('playlists'), db.clear('history'), db.clear('track_cache'), db.clear('home_recommend')])
+  // 清除所有相关 localStorage
+  const keysToRemove = Object.keys(localStorage).filter((k) => k.startsWith('xf-'))
+  keysToRemove.forEach((k) => localStorage.removeItem(k))
 }

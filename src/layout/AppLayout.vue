@@ -1,5 +1,5 @@
 <template>
-  <div class="app-layout">
+  <div class="app-layout" @click.capture="player.resumePendingPlay" @touchstart.capture.passive="player.resumePendingPlay">
     <main class="layout-body">
       <router-view v-slot="{ Component, route: currentRoute }">
         <keep-alive :include="['HomePage', 'MinePage']">
@@ -80,7 +80,7 @@ const { prefetch } = useColorExtract()
 const { theme } = useTheme()
 
 const loadingDefault = ref(false)
-const HOT_KEYWORD_CACHE_KEY = 'pika-play-hot-keyword'
+const HOT_KEYWORD_CACHE_KEY = 'xf-play-hot-keyword'
 const tabbarRef = ref<HTMLElement | null>(null)
 const ringBox = ref({ width: 100, height: 56, radius: 28 })
 let tabbarResizeObserver: ResizeObserver | null = null
@@ -252,7 +252,7 @@ async function loadDefaultTrack() {
     const cachedTracks = await dbGetHomeRecommend(cacheKey)
     if (cachedTracks?.length) {
       void prefetch(cachedTracks.slice(0, appConfig.colorPrefetchCount).map((track) => track.cover))
-      await player.loadTrackOnly(cachedTracks[0], cachedTracks)
+      await player.playTrack(cachedTracks[0], cachedTracks)
       return
     }
 
@@ -266,7 +266,7 @@ async function loadDefaultTrack() {
     if (hotTrackResult?.tracks.length) {
       void prefetch(hotTrackResult.tracks.slice(0, appConfig.colorPrefetchCount).map((track) => track.cover))
       await dbSetHomeRecommend(hotTrackResult.tracks, cacheKey)
-      await player.loadTrackOnly(hotTrackResult.tracks[0], hotTrackResult.tracks)
+      await player.playTrack(hotTrackResult.tracks[0], hotTrackResult.tracks)
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(HOT_KEYWORD_CACHE_KEY, hotTrackResult.keyword)
       }

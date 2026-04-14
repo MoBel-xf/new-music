@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 
-const APP_CONFIG_KEY = 'pikachu-app-config-v1'
+const APP_CONFIG_KEY = 'xf-app-config-v1'
 
 export const DEFAULT_HOME_QUERY_KEYWORD = '抖音热歌'
 export const DEFAULT_PLAY_QUERY_KEYWORD = '抖音热歌'
@@ -14,6 +14,8 @@ interface AppConfigSnapshot {
   prefetchCount: number
   colorPrefetchCount: number
   keepTabbarDominantColor: boolean
+  /** 会话有效期（分钟），超过后重新拉取歌曲详情 */
+  sessionTTLMinutes: number
 }
 
 function normalizeKeyword(value: unknown, fallback: string) {
@@ -41,6 +43,8 @@ export const useAppConfigStore = defineStore('app-config', () => {
   const prefetchCount = ref(4)
   const colorPrefetchCount = ref(6)
   const keepTabbarDominantColor = ref(false)
+  /** 会话有效期（分钟），默认 60 分钟 */
+  const sessionTTLMinutes = ref(60)
 
   function applySnapshot(snapshot?: Partial<AppConfigSnapshot>) {
     homeQueryKeyword.value = normalizeKeyword(snapshot?.homeQueryKeyword, DEFAULT_HOME_QUERY_KEYWORD)
@@ -50,6 +54,7 @@ export const useAppConfigStore = defineStore('app-config', () => {
     prefetchCount.value = normalizeCount(snapshot?.prefetchCount, 4, 0, 12)
     colorPrefetchCount.value = normalizeCount(snapshot?.colorPrefetchCount, 6, 0, 16)
     keepTabbarDominantColor.value = normalizeBoolean(snapshot?.keepTabbarDominantColor, false)
+    sessionTTLMinutes.value = normalizeCount(snapshot?.sessionTTLMinutes, 60, 5, 1440)
   }
 
   function load() {
@@ -72,7 +77,8 @@ export const useAppConfigStore = defineStore('app-config', () => {
       playQueryLimit: playQueryLimit.value,
       prefetchCount: prefetchCount.value,
       colorPrefetchCount: colorPrefetchCount.value,
-      keepTabbarDominantColor: keepTabbarDominantColor.value
+      keepTabbarDominantColor: keepTabbarDominantColor.value,
+      sessionTTLMinutes: sessionTTLMinutes.value
     }
     window.localStorage.setItem(APP_CONFIG_KEY, JSON.stringify(snapshot))
   }
@@ -85,15 +91,28 @@ export const useAppConfigStore = defineStore('app-config', () => {
       playQueryLimit: snapshot.playQueryLimit ?? playQueryLimit.value,
       prefetchCount: snapshot.prefetchCount ?? prefetchCount.value,
       colorPrefetchCount: snapshot.colorPrefetchCount ?? colorPrefetchCount.value,
-      keepTabbarDominantColor: snapshot.keepTabbarDominantColor ?? keepTabbarDominantColor.value
+      keepTabbarDominantColor: snapshot.keepTabbarDominantColor ?? keepTabbarDominantColor.value,
+      sessionTTLMinutes: snapshot.sessionTTLMinutes ?? sessionTTLMinutes.value
     })
   }
 
   load()
 
-  watch([homeQueryKeyword, homeQueryLimit, playQueryKeyword, playQueryLimit, prefetchCount, colorPrefetchCount, keepTabbarDominantColor], () => {
-    save()
-  })
+  watch(
+    [
+      homeQueryKeyword,
+      homeQueryLimit,
+      playQueryKeyword,
+      playQueryLimit,
+      prefetchCount,
+      colorPrefetchCount,
+      keepTabbarDominantColor,
+      sessionTTLMinutes
+    ],
+    () => {
+      save()
+    }
+  )
 
   return {
     homeQueryKeyword,
@@ -103,6 +122,7 @@ export const useAppConfigStore = defineStore('app-config', () => {
     prefetchCount,
     colorPrefetchCount,
     keepTabbarDominantColor,
+    sessionTTLMinutes,
     patchConfig
   }
 })

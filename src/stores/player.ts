@@ -10,7 +10,7 @@ import { showToast } from 'vant'
 import { useColorExtract } from '@/composables/useColorExtract'
 import { useAppConfigStore } from '@/stores/appConfig'
 
-const PLAYER_SESSION_KEY = 'pikachu-player-session-v1'
+const PLAYER_SESSION_KEY = 'xf-player-session-v1'
 
 interface PlayerSessionSnapshot {
   currentTrack: Track | null
@@ -21,6 +21,10 @@ interface PlayerSessionSnapshot {
   volume: number
   muted: boolean
   dominantColor: string
+  /** 保存时是否正在播放（用于判断是否为异常中断） */
+  wasPlaying: boolean
+  /** 保存时间戳 */
+  savedAt: number
 }
 
 /** 设置主导色及全部衍生变量（参考 tabbar 的亮暗自适应策略） */
@@ -61,8 +65,10 @@ export const usePlayerStore = defineStore('player', () => {
   const muted = ref(false)
   const lyricLines = ref<LyricLine[]>([])
   const currentLyricIndex = ref(-1)
-  const dominantColor = ref('#FF6B6B')
+  const FALLBACK_COLOR = '#FF6B6B'
+  const dominantColor = ref(FALLBACK_COLOR)
   const isLoadingDetails = ref(false)
+  const pendingAutoPlay = ref(false)
   let isRestoringSession = false
   let sessionSaveTimer: ReturnType<typeof setTimeout> | null = null
   let currentColorTaskId = 0
@@ -73,8 +79,10 @@ export const usePlayerStore = defineStore('player', () => {
   async function syncTrackColor(coverUrl?: string) {
     const taskId = ++currentColorTaskId
     if (!coverUrl) {
-      dominantColor.value = '#FF6B6B'
-      applyDominantColor('#FF6B6B')
+      // 没有封面时保留上一首的颜色，红色仅做最终兜底
+      const fallback = dominantColor.value || FALLBACK_COLOR
+      dominantColor.value = fallback
+      applyDominantColor(fallback)
       scheduleSessionSave()
       return
     }
@@ -117,7 +125,9 @@ export const usePlayerStore = defineStore('player', () => {
       currentTime: currentTime.value,
       volume: volume.value,
       muted: muted.value,
-      dominantColor: dominantColor.value
+      dominantColor: dominantColor.value,
+      wasPlaying: isPlaying.value,
+      savedAt: Date.now()
     }
   }
 
@@ -146,6 +156,12 @@ export const usePlayerStore = defineStore('player', () => {
       const snapshot = JSON.parse(raw) as Partial<PlayerSessionSnapshot>
       if (!snapshot.currentTrack) return
 
+      const sessionTTL = appConfig.sessionTTLMinutes * 60 * 1000
+      const savedAt = snapshot.savedAt || 0
+      const isExpired = Date.now() - savedAt > sessionTTL
+      // 上次保存时正在播放 = 异常中断（正常退出会暂停后保存）
+      const wasInterrupted = Boolean(snapshot.wasPlaying)
+
       isRestoringSession = true
       currentTrack.value = { ...snapshot.currentTrack }
       queue.value = Array.isArray(snapshot.queue) ? snapshot.queue.map((track) => ({ ...track })) : [{ ...snapshot.currentTrack }]
@@ -157,10 +173,36 @@ export const usePlayerStore = defineStore('player', () => {
       currentLyricIndex.value = snapshot.currentTime ? findCurrentLyricIndex(lyricLines.value, snapshot.currentTime) : -1
       currentTime.value = typeof snapshot.currentTime === 'number' ? snapshot.currentTime : 0
       progress.value = 0
-      dominantColor.value = snapshot.dominantColor || peek(snapshot.currentTrack.cover || '') || '#FF6B6B'
+      dominantColor.value = snapshot.dominantColor || peek(snapshot.currentTrack.cover || '') || FALLBACK_COLOR
       applyDominantColor(dominantColor.value)
 
-      if (snapshot.currentTrack.audioUrl) {
+      if (isExpired) {
+        // 会话过期：保留歌曲信息展示，但标记需要重新获取详情
+        currentTrack.value = { ...currentTrack.value, audioUrl: '', detailsLoaded: false, _retried: false }
+        // 异步重新获取详情（不自动播放）
+        const trackToRefresh = currentTrack.value
+        setTimeout(async () => {
+          try {
+            const fresh = await fetchTrackDetails(trackToRefresh)
+            if (currentTrack.value?.uid === trackToRefresh.uid) {
+              currentTrack.value = fresh
+              lyricLines.value = parseLrc(fresh.lrc || '')
+              const qi = queue.value.findIndex((x) => x.uid === fresh.uid)
+              if (qi !== -1) queue.value[qi] = { ...fresh }
+              dbSetCachedTrack(fresh).catch(() => {})
+              syncMediaSessionMetadata()
+              if (fresh.audioUrl) {
+                const audio = getAudio()
+                audio.src = fresh.audioUrl
+                audio.preload = 'auto'
+              }
+            }
+          } catch {
+            // 刷新失败静默处理
+          }
+        }, 100)
+      } else if (snapshot.currentTrack.audioUrl) {
+        // 未过期：正常恢复音频
         const audio = getAudio()
         audio.src = snapshot.currentTrack.audioUrl
         audio.preload = 'auto'
@@ -172,6 +214,10 @@ export const usePlayerStore = defineStore('player', () => {
           duration.value = audio.duration || 0
           progress.value = duration.value > 0 ? currentTime.value / duration.value : 0
           audio.removeEventListener('loadedmetadata', onLoadedMetadata)
+          // 仅在异常中断时自动恢复播放
+          if (wasInterrupted) {
+            audio.play().catch(() => {})
+          }
         }
         audio.addEventListener('loadedmetadata', onLoadedMetadata)
       }
@@ -239,6 +285,14 @@ export const usePlayerStore = defineStore('player', () => {
       })
       _audio.addEventListener('loadedmetadata', () => {
         duration.value = _audio!.duration || 0
+        // 将真实时长回写到 currentTrack 并同步到收藏/歌单
+        const realDuration = Math.round(duration.value)
+        if (currentTrack.value && realDuration > 0 && currentTrack.value.duration !== realDuration) {
+          currentTrack.value = { ...currentTrack.value, duration: realDuration }
+          dbSetCachedTrack(currentTrack.value).catch(() => {})
+          // 延迟同步，确保 playlist store 已完成初始化和回调注册
+          setTimeout(() => _syncTrackCallback?.(currentTrack.value!), 0)
+        }
         syncMediaSessionPosition()
         scheduleSessionSave()
       })
@@ -272,7 +326,7 @@ export const usePlayerStore = defineStore('player', () => {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: track.title || '未知歌曲',
       artist: track.artist || '未知歌手',
-      album: track.album || 'Pikachu Music',
+      album: track.album || 'XF Music',
       artwork: buildArtwork(track)
     })
     syncMediaSessionState()
@@ -366,33 +420,149 @@ export const usePlayerStore = defineStore('player', () => {
   const currentIndex = computed(() => queue.value.findIndex((t) => t.uid === currentTrack.value?.uid))
 
   // ── Actions ───────────────────────────────────────────────────────────────
+  /** 音频链接有效期（2 小时） */
+  const URL_TTL = 2 * 60 * 60 * 1000
+
+  function isAudioUrlExpired(track: Track): boolean {
+    if (!track.audioUrl) return false
+    if (!track.urlFetchedAt) return true
+    return Date.now() - track.urlFetchedAt > URL_TTL
+  }
+
+  // ── 预加载系统 ─────────────────────────────────────────────────────────
+  const PREFETCH_AHEAD = 5
+  /** uid → 预加载好的完整 Track（已验证 audioUrl / lrc / 封面色） */
+  const prefetchedMap = new Map<string, Track>()
+  /** uid → 预加载好的封面主色 */
+  const prefetchedColors = new Map<string, string>()
+  /** 正在预加载中的 uid 集合，防止重复 */
+  const prefetchingUids = new Set<string>()
+
+  /** 预加载单首歌曲：获取详情 + 校验 audioUrl + 提取主色 */
+  async function prefetchSingle(track: Track): Promise<boolean> {
+    if (prefetchedMap.has(track.uid) || prefetchingUids.has(track.uid)) return true
+    prefetchingUids.add(track.uid)
+    try {
+      let t = track
+      if (shouldFetchDetails(t)) {
+        const cached = await dbGetCachedTrack(t.uid)
+        if (cached && !shouldFetchDetails(cached)) {
+          t = { ...cached }
+        } else {
+          t = await fetchTrackDetails(t)
+          await dbSetCachedTrack(t)
+        }
+      }
+      if (!t.audioUrl) return false
+
+      // 提取封面主色
+      if (t.cover) {
+        const color = peek(t.cover) || (await extract(t.cover))
+        prefetchedColors.set(t.uid, color)
+      }
+
+      // 同步更新 queue 中对应项
+      const qi = queue.value.findIndex((x) => x.uid === t.uid)
+      if (qi !== -1) queue.value[qi] = { ...t }
+
+      prefetchedMap.set(t.uid, t)
+      return true
+    } catch {
+      return false
+    } finally {
+      prefetchingUids.delete(track.uid)
+    }
+  }
+
+  /** 获取当前位置之后需要预加载的歌曲列表 */
+  function getUpcomingTracks(count: number): Track[] {
+    const list = queue.value
+    if (!list.length) return []
+    const idx = currentIndex.value
+    const start = idx >= 0 ? idx + 1 : 0
+    const result: Track[] = []
+    for (let i = 0; i < list.length && result.length < count; i++) {
+      const t = list[(start + i) % list.length]
+      if (t && !prefetchedMap.has(t.uid)) result.push(t)
+    }
+    return result
+  }
+
+  /** 后台预加载接下来的歌曲，跳过失败的 */
+  async function prefetchAhead() {
+    const upcoming = getUpcomingTracks(PREFETCH_AHEAD * 2) // 多取一些以容错
+    let readyCount = prefetchedMap.size
+    for (const track of upcoming) {
+      if (readyCount >= PREFETCH_AHEAD) break
+      if (prefetchedMap.has(track.uid)) {
+        readyCount++
+        continue
+      }
+      const ok = await prefetchSingle(track)
+      if (ok) readyCount++
+      // 失败的歌从队列中移除，避免切到时还要等
+      if (!ok) {
+        const removeIdx = queue.value.findIndex((x) => x.uid === track.uid)
+        if (removeIdx !== -1 && queue.value[removeIdx]?.uid !== currentTrack.value?.uid) {
+          queue.value.splice(removeIdx, 1)
+        }
+      }
+    }
+  }
+
+  /** 清理已播放过的预加载缓存 */
+  function cleanPrefetchCache(keepUid: string) {
+    for (const uid of prefetchedMap.keys()) {
+      if (uid !== keepUid) {
+        // 保留队列中即将播放的，其余清除
+        const inUpcoming = getUpcomingTracks(PREFETCH_AHEAD).some((t) => t.uid === uid)
+        if (!inUpcoming) {
+          prefetchedMap.delete(uid)
+          prefetchedColors.delete(uid)
+        }
+      }
+    }
+  }
+
   function shouldFetchDetails(track: Track) {
     if (!track.detailsLoaded) return true
     if (!track.audioUrl) return true
+    if (isAudioUrlExpired(track)) return true
     if (!track.lyricFetched && !track.lrc) return true
     return false
   }
 
   async function playTrack(track: Track, newQueue?: Track[], context?: PlayContext) {
     // 先设置队列和上下文（让 UI 立即响应）
-    if (newQueue) queue.value = newQueue
+    if (newQueue) {
+      queue.value = newQueue
+      // 切换队列时清空预加载缓存
+      prefetchedMap.clear()
+      prefetchedColors.clear()
+    }
     if (context) playContext.value = context
 
-    let t = track
+    // 优先使用预加载缓存（瞬时切换，无 loading）
+    const prefetched = prefetchedMap.get(track.uid)
+    let t = prefetched ? { ...prefetched } : track
 
-    const cachedColor = peek(track.cover || '')
-    if (cachedColor) {
-      dominantColor.value = cachedColor
-      applyDominantColor(cachedColor)
+    // 立即应用预加载的主色（避免闪烁）
+    const preColor = prefetchedColors.get(track.uid) || peek(track.cover || '')
+    if (preColor) {
+      dominantColor.value = preColor
+      applyDominantColor(preColor)
     }
 
-    currentTrack.value = { ...track }
-    lyricLines.value = parseLrc(track.lrc || '')
+    currentTrack.value = { ...t }
+    lyricLines.value = parseLrc(t.lrc || '')
     currentLyricIndex.value = -1
+    currentTime.value = 0
+    duration.value = 0
+    progress.value = 0
     syncMediaSessionMetadata()
 
-    if (shouldFetchDetails(t)) {
-      // 先查 IndexedDB 缓存
+    // 没有预加载缓存时才走网络请求
+    if (!prefetched && shouldFetchDetails(t)) {
       const cached = await dbGetCachedTrack(t.uid)
       if (cached && !shouldFetchDetails(cached)) {
         t = { ...cached }
@@ -408,7 +578,6 @@ export const usePlayerStore = defineStore('player', () => {
           isLoadingDetails.value = false
         }
       }
-      // 同步更新 queue 中的对应项（用 uid 匹配，防止竞态）
       const qi = queue.value.findIndex((x) => x.uid === t.uid)
       if (qi !== -1) queue.value[qi] = { ...t }
     }
@@ -417,13 +586,19 @@ export const usePlayerStore = defineStore('player', () => {
     lyricLines.value = parseLrc(t.lrc || '')
     currentLyricIndex.value = -1
     syncMediaSessionMetadata()
-    void warmupTrackVisuals()
 
-    // 所有播放的歌曲都缓存到 IndexedDB
+    if (!prefetched) {
+      // 非预加载的歌曲仍需提色
+      void warmupTrackVisuals()
+    }
+
     dbSetCachedTrack(t).catch(() => {})
-
-    // 同步到 playlist store 的历史（避免循环依赖，通过事件解耦）
+    _syncTrackCallback?.(t)
     _pushHistoryCallback?.(t)
+
+    // 清理旧缓存，触发新一轮预加载
+    cleanPrefetchCache(t.uid)
+    void prefetchAhead()
 
     if (!t.audioUrl) {
       showToast('暂无可用音源')
@@ -434,11 +609,13 @@ export const usePlayerStore = defineStore('player', () => {
     a.src = t.audioUrl
     a.currentTime = 0
     await a.play().catch((err) => {
-      // AbortError 是切歌时的正常打断，不提示
-      if (err?.name !== 'AbortError') {
-        console.warn('[play error]', err)
-        showToast('播放失败，请检查网络')
+      if (err?.name === 'AbortError') return
+      if (err?.name === 'NotAllowedError') {
+        pendingAutoPlay.value = true
+        return
       }
+      console.warn('[play error]', err)
+      showToast('播放失败，请检查网络')
     })
   }
 
@@ -475,6 +652,9 @@ export const usePlayerStore = defineStore('player', () => {
     currentTrack.value = { ...track }
     lyricLines.value = parseLrc(track.lrc || '')
     currentLyricIndex.value = -1
+    currentTime.value = 0
+    duration.value = 0
+    progress.value = 0
     syncMediaSessionMetadata()
 
     if (shouldFetchDetails(t)) {
@@ -511,12 +691,21 @@ export const usePlayerStore = defineStore('player', () => {
       a.src = t.audioUrl
       a.currentTime = 0
     }
+
+    // 触发后台预加载
+    void prefetchAhead()
   }
 
   // 历史记录回调（由 playlist store 注册，避免循环依赖）
   let _pushHistoryCallback: ((track: Track) => void) | null = null
   function registerHistoryCallback(cb: (track: Track) => void) {
     _pushHistoryCallback = cb
+  }
+
+  // 同步歌曲详情回调（详情加载后同步 duration 等字段到收藏/歌单）
+  let _syncTrackCallback: ((track: Track) => void) | null = null
+  function registerSyncTrackCallback(cb: (track: Track) => void) {
+    _syncTrackCallback = cb
   }
 
   function playNext(dir: 'next' | 'prev') {
@@ -632,6 +821,27 @@ export const usePlayerStore = defineStore('player', () => {
 
   restoreSession()
 
+  // 正常退出时标记 wasPlaying=false，区分异常中断
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', () => {
+      const snapshot = buildSessionSnapshot()
+      snapshot.wasPlaying = false
+      try {
+        window.localStorage.setItem(PLAYER_SESSION_KEY, JSON.stringify(snapshot))
+      } catch {
+        /* noop */
+      }
+    })
+  }
+
+  /** 用户首次交互时恢复被浏览器拦截的自动播放 */
+  function resumePendingPlay() {
+    if (!pendingAutoPlay.value) return
+    pendingAutoPlay.value = false
+    const a = getAudio()
+    if (a.src) a.play().catch(() => {})
+  }
+
   return {
     currentTrack,
     queue,
@@ -647,8 +857,10 @@ export const usePlayerStore = defineStore('player', () => {
     currentLyricIndex,
     dominantColor,
     isLoadingDetails,
+    pendingAutoPlay,
     currentIndex,
     playTrack,
+    resumePendingPlay,
     insertAndPlay,
     loadTrackOnly,
     playNext,
@@ -660,6 +872,7 @@ export const usePlayerStore = defineStore('player', () => {
     setPlayMode,
     setDominantColor,
     setQueue,
-    registerHistoryCallback
+    registerHistoryCallback,
+    registerSyncTrackCallback
   }
 })

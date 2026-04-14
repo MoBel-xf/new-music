@@ -87,6 +87,48 @@ const { prefetch } = useColorExtract()
 
 const HOT_KEYWORDS = ['周杰伦', 'Taylor Swift', '轻音乐', '林俊杰', '邓紫棋', 'lo-fi', '陈奕迅', '五月天', 'Billie Eilish', '刀郎']
 
+// 推荐关键词池，每次刷新随机选取多个关键词混合搜索
+const RECOMMEND_POOL = [
+  '抖音热歌',
+  '华语流行',
+  '欧美热单',
+  '日语歌曲',
+  '韩语流行',
+  '经典老歌',
+  '轻音乐',
+  '民谣',
+  '说唱',
+  '电子音乐',
+  '摇滚',
+  'R&B',
+  '古风',
+  '粤语经典',
+  '网络热歌',
+  '治愈系',
+  '动漫音乐',
+  'lo-fi',
+  '爵士',
+  '新歌推荐',
+  '情歌对唱',
+  '伤感情歌',
+  '运动音乐',
+  '睡前音乐',
+  '咖啡厅音乐'
+]
+
+/** 从池中随机选 count 个不重复的关键词 */
+function pickRandomKeywords(count: number): string[] {
+  const pool = [...RECOMMEND_POOL]
+  const result: string[] = []
+  const n = Math.min(count, pool.length)
+  for (let i = 0; i < n; i++) {
+    const idx = Math.floor(Math.random() * pool.length)
+    result.push(pool[idx])
+    pool.splice(idx, 1)
+  }
+  return result
+}
+
 const refreshing = ref(false)
 const loadingRecommend = ref(false)
 const recommendTracks = ref<Track[]>([])
@@ -106,12 +148,34 @@ async function loadRecommend(force = false) {
   if (loadingRecommend.value) return
   if (!force && recommendTracks.value.length) return
   loadingRecommend.value = true
-  const kw = appConfig.homeQueryKeyword
+
+  // 随机选 3 个关键词并发搜索，每个关键词给足够的搜索数量
+  const keywords = pickRandomKeywords(3)
+  const limitPerKw = Math.max(12, appConfig.homeQueryLimit)
+  const enabledSources = searchStore.getEnabledSources()
+
   try {
-    const tracks = await searchAllSources({ keyword: kw, limit: appConfig.homeQueryLimit }, searchStore.getEnabledSources())
-    recommendTracks.value = tracks
-    void prefetch(tracks.slice(0, appConfig.colorPrefetchCount).map((track) => track.cover))
-    await dbSetHomeRecommend(tracks, homeRecommendCacheKey.value)
+    const allResults = await Promise.all(
+      keywords.map((kw) => searchAllSources({ keyword: kw, limit: limitPerKw }, enabledSources).catch(() => [] as Track[]))
+    )
+
+    // 交叉混合 + 去重
+    const merged: Track[] = []
+    const seen = new Set<string>()
+    const maxLen = Math.max(0, ...allResults.map((r) => r.length))
+    for (let i = 0; i < maxLen; i++) {
+      for (const tracks of allResults) {
+        const t = tracks[i]
+        if (t && !seen.has(t.uid)) {
+          seen.add(t.uid)
+          merged.push(t)
+        }
+      }
+    }
+
+    recommendTracks.value = merged
+    void prefetch(merged.slice(0, appConfig.colorPrefetchCount).map((track) => track.cover))
+    await dbSetHomeRecommend(merged, homeRecommendCacheKey.value)
   } catch {
     recommendTracks.value = []
   } finally {
@@ -130,22 +194,17 @@ function openAction(track: Track) {
 }
 
 onMounted(async () => {
+  // 先展示缓存数据，后台静默刷新新内容
   const cached = await dbGetHomeRecommend(homeRecommendCacheKey.value)
   if (cached?.length) {
     recommendTracks.value = cached
     void prefetch(cached.slice(0, appConfig.colorPrefetchCount).map((track) => track.cover))
-    return
   }
-  loadRecommend()
+  // 每次进入首页都重新加载，确保推荐内容不同
+  loadRecommend(true)
 })
 
-watch(homeRecommendCacheKey, async () => {
-  const cached = await dbGetHomeRecommend(homeRecommendCacheKey.value)
-  if (cached?.length) {
-    recommendTracks.value = cached
-    void prefetch(cached.slice(0, appConfig.colorPrefetchCount).map((track) => track.cover))
-    return
-  }
+watch(homeRecommendCacheKey, () => {
   recommendTracks.value = []
   void loadRecommend(true)
 })

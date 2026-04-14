@@ -37,6 +37,14 @@ function hideBootLoading() {
   })
 }
 
+function waitForFirstPaint() {
+  return new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve())
+    })
+  })
+}
+
 setViewportVars()
 window.addEventListener('resize', setViewportVars)
 window.addEventListener('orientationchange', setViewportVars)
@@ -89,7 +97,12 @@ app.directive('long-press', {
   }
 })
 
-app.mount('#app')
-router.isReady().finally(() => {
-  hideBootLoading()
-})
+async function bootstrap() {
+  await waitForFirstPaint()
+  app.mount('#app')
+  router.isReady().finally(() => {
+    hideBootLoading()
+  })
+}
+
+void bootstrap()

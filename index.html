@@ -67,22 +67,50 @@
         border-radius: 50%;
         background: radial-gradient(circle, rgba(115, 240, 187, 0.28), transparent 68%);
         filter: blur(10px);
+        will-change: transform, opacity;
+        transform: translateZ(0);
         animation: boot-breathe 2.4s ease-in-out infinite;
       }
 
-      .boot-disc {
+      .boot-notes {
         position: relative;
         z-index: 1;
-        width: 52px;
-        height: 52px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 8px;
+        height: 58px;
         margin: 0 auto 14px;
-        border-radius: 50%;
-        border: 3px solid rgba(255, 255, 255, 0.12);
-        border-top-color: #73f0bb;
-        border-right-color: #70c4ff;
-        animation:
-          boot-spin 0.9s linear infinite,
-          boot-breathe 2.4s ease-in-out infinite;
+      }
+
+      .boot-note {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        color: #f5f9ff;
+        font-size: 26px;
+        line-height: 1;
+        text-shadow: 0 6px 16px rgba(112, 196, 255, 0.24);
+        will-change: transform, opacity;
+        transform: translateZ(0);
+        backface-visibility: hidden;
+        animation: boot-note-bounce 1.15s ease-in-out infinite;
+      }
+
+      .boot-note:nth-child(1) {
+        color: #73f0bb;
+        animation-delay: 0s;
+      }
+
+      .boot-note:nth-child(2) {
+        color: #70c4ff;
+        animation-delay: 0.18s;
+      }
+
+      .boot-note:nth-child(3) {
+        color: #ffd36e;
+        animation-delay: 0.36s;
       }
 
       .boot-title {
@@ -103,13 +131,21 @@
         font-size: 12px;
       }
 
-      @keyframes boot-spin {
-        from {
-          transform: rotate(0deg);
+      @keyframes boot-note-bounce {
+        0%,
+        100% {
+          transform: translate3d(0, 0, 0) scale(0.92);
+          opacity: 0.58;
         }
 
-        to {
-          transform: rotate(360deg);
+        40% {
+          transform: translate3d(0, -12px, 0) scale(1.08);
+          opacity: 1;
+        }
+
+        65% {
+          transform: translate3d(0, -4px, 0) scale(0.98);
+          opacity: 0.9;
         }
       }
 
@@ -130,7 +166,13 @@
   <body>
     <div id="boot-loading" aria-live="polite">
       <div class="boot-card">
-        <div class="boot-disc"></div>
+        <div class="boot-notes" aria-hidden="true">
+          <span class="boot-note">♪</span>
+          <span class="boot-note">♪</span>
+          <span class="boot-note">♪</span>
+          <!-- <span class="boot-note">♫</span>
+          <span class="boot-note">♬</span> -->
+        </div>
         <p class="boot-title">APP Music</p>
         <p class="boot-subtitle" id="boot-subtitle">正在加载播放页…</p>
       </div>

@@ -64,7 +64,7 @@
         </section>
 
         <div v-if="player.isLoadingDetails" class="loading-overlay">
-          <van-loading color="var(--brand-from)" size="32px" />
+          <span class="detail-loading-spinner" aria-hidden="true" />
           <p>正在加载…</p>
         </div>
       </main>
@@ -184,7 +184,7 @@ import SourceBadge from '@/components/SourceBadge.vue'
 
 defineOptions({ name: 'PlayPage' })
 
-const HOT_KEYWORD_CACHE_KEY = 'pika-play-hot-keyword'
+const HOT_KEYWORD_CACHE_KEY = 'xf-play-hot-keyword'
 
 const router = useRouter()
 const appConfig = useAppConfigStore()
@@ -906,6 +906,26 @@ watch(
   z-index: 10;
   color: var(--page-text-primary);
   font-size: 14px;
+}
+
+.detail-loading-spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--page-text-primary) 18%, transparent);
+  border-top-color: var(--page-accent-bright, var(--brand-from));
+  border-right-color: var(--page-accent, var(--brand-from));
+  animation: detailSpinnerSpin 0.78s linear infinite;
+}
+
+@keyframes detailSpinnerSpin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .mode-panel {

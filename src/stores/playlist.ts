@@ -14,7 +14,11 @@ import {
   dbPushHistory,
   dbClearHistory
 } from '@/utils/db'
+import { fetchTrackDetails } from '@/api'
 import { usePlayerStore } from '@/stores/player'
+
+/** 音频链接有效期（2 小时） */
+const URL_TTL = 2 * 60 * 60 * 1000
 
 export const usePlaylistStore = defineStore('playlist', () => {
   const favorites = ref<Track[]>([])
@@ -40,6 +44,11 @@ export const usePlaylistStore = defineStore('playlist', () => {
       trackCache.value.set(track.uid, track)
       // 持久化
       await dbPushHistory(track)
+    })
+
+    // 注册详情同步回调（播放时加载完详情后同步 duration 等字段到收藏/歌单）
+    playerStore.registerSyncTrackCallback((track: Track) => {
+      syncTrack(track)
     })
   }
 
@@ -116,7 +125,68 @@ export const usePlaylistStore = defineStore('playlist', () => {
   function syncTrack(track: Track) {
     trackCache.value.set(track.uid, track)
     const fi = favorites.value.findIndex((t) => t.uid === track.uid)
-    if (fi !== -1) favorites.value[fi] = track
+    if (fi !== -1) {
+      favorites.value[fi] = track
+      // 持久化更新后的收藏数据（含 duration 等完整字段）
+      dbPutFavorite({ ...toRaw(track) }).catch(() => {})
+    }
+  }
+
+  // ── 链接过期刷新 ──────────────────────────────────────────────────────────
+  function isUrlExpired(track: Track): boolean {
+    if (!track.audioUrl) return true
+    if (!track.urlFetchedAt) return true
+    return Date.now() - track.urlFetchedAt > URL_TTL
+  }
+
+  /**
+   * 批量刷新过期音频链接，更新内存和持久化存储
+   * @param source 指定数据来源（收藏 / 歌单 / 历史），用于更新对应列表
+   */
+  async function refreshExpiredTracks(source: 'favorites' | 'history' | 'playlist', playlistId?: string) {
+    let tracksToCheck: Track[]
+    if (source === 'favorites') {
+      tracksToCheck = favorites.value
+    } else if (source === 'history') {
+      tracksToCheck = history.value
+    } else if (playlistId) {
+      tracksToCheck = getPlaylistTracks(playlistId)
+    } else {
+      return
+    }
+
+    const expired = tracksToCheck.filter((t) => t.detailsLoaded && isUrlExpired(t))
+    if (!expired.length) return
+
+    // 并发刷新（最多 5 个并发）
+    const CONCURRENCY = 5
+    for (let i = 0; i < expired.length; i += CONCURRENCY) {
+      const batch = expired.slice(i, i + CONCURRENCY)
+      const results = await Promise.allSettled(
+        batch.map(async (t) => {
+          const fresh = await fetchTrackDetails(t)
+          return fresh
+        })
+      )
+
+      for (const result of results) {
+        if (result.status !== 'fulfilled') continue
+        const fresh = result.value
+        // 更新内存缓存
+        trackCache.value.set(fresh.uid, fresh)
+        // 更新对应列表中的引用
+        if (source === 'favorites') {
+          const idx = favorites.value.findIndex((t) => t.uid === fresh.uid)
+          if (idx !== -1) {
+            favorites.value[idx] = fresh
+            dbPutFavorite({ ...toRaw(fresh) }).catch(() => {})
+          }
+        } else if (source === 'history') {
+          const idx = history.value.findIndex((t) => t.uid === fresh.uid)
+          if (idx !== -1) history.value[idx] = fresh
+        }
+      }
+    }
   }
 
   return {
@@ -134,6 +204,7 @@ export const usePlaylistStore = defineStore('playlist', () => {
     removeFromPlaylist,
     getPlaylistTracks,
     clearHistory,
-    syncTrack
+    syncTrack,
+    refreshExpiredTracks
   }
 })

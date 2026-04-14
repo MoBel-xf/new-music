@@ -31,9 +31,13 @@
           <Icon name="icon-delete" size="18" />
           <span>清除全部缓存</span>
         </button>
+        <button class="nuke-btn" type="button" @click="nukeAll">
+          <Icon name="icon-delete" size="18" />
+          <span>彻底清除所有数据</span>
+        </button>
       </section>
 
-      <div class="cache-footer">清除后不影响收藏和歌单数据</div>
+      <div class="cache-footer">「清除全部缓存」不影响收藏和歌单，「彻底清除」会删除所有数据</div>
     </div>
   </div>
 </template>
@@ -43,7 +47,7 @@ defineOptions({ name: 'CacheManagePage' })
 import { onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
-import { dbGetCacheStats, dbClearHistory, dbClearTrackCache, dbClearHomeRecommend, dbClearAllCache, type CacheStats } from '@/utils/db'
+import { dbGetCacheStats, dbClearHistory, dbClearTrackCache, dbClearHomeRecommend, dbClearAllCache, dbNukeAll, type CacheStats } from '@/utils/db'
 import { usePlaylistStore } from '@/stores/playlist'
 import Icon from '@/components/Icon.vue'
 
@@ -97,7 +101,7 @@ const cacheItems: CacheItem[] = [
     desc: '搜索关键词记录',
     icon: 'icon-search',
     clear: async () => {
-      localStorage.removeItem('pikachu-search-history')
+      localStorage.removeItem('xf-search-history')
     }
   }
 ]
@@ -137,6 +141,23 @@ async function clearAll() {
     await dbClearAllCache()
     plStore.history = []
     showToast('全部缓存已清除')
+    await refreshStats()
+  } catch {
+    // 取消
+  }
+}
+
+async function nukeAll() {
+  try {
+    await showConfirmDialog({
+      title: '彻底清除所有数据',
+      message: '将清除所有数据，包括收藏、歌单、播放历史、缓存等，此操作不可恢复！'
+    })
+    await dbNukeAll()
+    plStore.favorites = []
+    plStore.playlists = []
+    plStore.history = []
+    showToast('所有数据已清除')
     await refreshStats()
   } catch {
     // 取消
@@ -295,6 +316,29 @@ onMounted(refreshStats)
 
 .clear-all-btn:active {
   background: var(--surface-2);
+}
+
+.nuke-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  background: #ff3b30;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.2s ease;
+}
+
+.nuke-btn:active {
+  background: #d63029;
 }
 
 .cache-footer {
