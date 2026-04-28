@@ -2,6 +2,7 @@
   "name": "xf-music",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://xf184.cn",
   "scripts": {
     "dev": "vite --force",
     "build": "vue-tsc && vite build",
