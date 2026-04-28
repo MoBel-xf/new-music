@@ -2,6 +2,8 @@
 
 Vue 3 + TypeScript + Pinia + Vant 4 移动端音乐播放器。
 
+**预览地址：** https://xf184.cn
+
 ## 技术栈
 
 | 分类 | 技术                   |
