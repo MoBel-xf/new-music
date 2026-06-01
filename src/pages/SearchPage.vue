@@ -1,5 +1,5 @@
-﻿<template>
-  <div class="search-page">
+<template>
+  <div class="search-page dominant-surface">
     <SearchConfigPopup v-slot:trigger="{ open }">
       <div class="search-header">
         <van-search
@@ -23,26 +23,33 @@
       </div>
     </SearchConfigPopup>
 
-    <section v-if="searchStore.historyKeywords.length" class="history-panel">
+    <section v-if="searchStore.historyKeywords.length" class="history-panel glass-panel">
       <div class="history-header">
-        <div class="history-title-wrap">
-          <button class="history-toggle" type="button" @click="historyCollapsed = !historyCollapsed">
-            <span class="history-title">历史搜索</span>
+        <div class="inline-flex items-center gap-2.5">
+          <button class="inline-flex items-center justify-center p-0 text-primary bg-transparent border-0 cursor-pointer" type="button" @click="historyCollapsed = !historyCollapsed">
+            <span class="text-sm font-bold">历史搜索</span>
           </button>
-          <span class="history-count">{{ searchStore.historyKeywords.length }}</span>
+          <span class="inline-flex items-center justify-center min-w-5.5 h-5.5 px-2 rounded-full text-xs font-bold dominant-text" style="background: var(--dominant-tint-3)">{{ searchStore.historyKeywords.length }}</span>
         </div>
-        <div class="history-actions">
-          <button class="history-clear-btn" type="button" @click.stop="confirmClearHistory">清空</button>
-          <button class="history-toggle-icon" type="button" @click="historyCollapsed = !historyCollapsed">
+        <div class="inline-flex items-center gap-2.5">
+          <button class="p-0 text-secondary text-xs bg-transparent border-0 cursor-pointer" type="button" @click.stop="confirmClearHistory">清空</button>
+          <button class="inline-flex items-center justify-center p-0 text-secondary bg-transparent border-0 cursor-pointer" type="button" @click="historyCollapsed = !historyCollapsed">
             <van-icon :name="historyCollapsed ? 'arrow-down' : 'arrow-up'" />
           </button>
         </div>
       </div>
 
-      <div v-show="!historyCollapsed" class="history-list">
-        <button v-for="keyword in searchStore.historyKeywords" :key="keyword" class="history-chip" type="button" @click="selectHistory(keyword)">
-          <span class="history-chip-text">{{ keyword }}</span>
-          <span class="history-chip-remove" @click.stop="removeHistoryKeyword(keyword)">
+      <div v-show="!historyCollapsed" class="history-chips">
+        <button
+          v-for="(keyword, index) in searchStore.historyKeywords"
+          :key="keyword"
+          class="history-chip glass-card"
+          :style="`--i: ${index}`"
+          type="button"
+          @click="selectHistory(keyword)"
+        >
+          <span class="overflow-hidden text-ellipsis whitespace-nowrap">{{ keyword }}</span>
+          <span class="chip-remove" @click.stop="removeHistoryKeyword(keyword)">
             <van-icon name="cross" />
           </span>
         </button>
@@ -198,56 +205,7 @@ watch(
   justify-content: space-between;
 }
 
-.history-toggle,
-.history-toggle-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  color: var(--text-primary);
-  background: transparent;
-  border: 0;
-}
-
-.history-toggle-icon {
-  color: var(--text-secondary);
-}
-
-.history-title-wrap,
-.history-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.history-title {
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.history-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: var(--radius-full);
-  color: var(--dominant-text);
-  background: var(--dominant-tint-3);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.history-clear-btn {
-  padding: 0;
-  color: var(--text-secondary);
-  font-size: 12px;
-  background: transparent;
-  border: 0;
-}
-
-.history-list {
+.history-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -267,15 +225,11 @@ watch(
   transition:
     border-color 0.5s ease,
     background 0.5s ease;
+  animation: fadeInUp 0.35s ease both;
+  animation-delay: calc(var(--i, 0) * 40ms);
 }
 
-.history-chip-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.history-chip-remove {
+.chip-remove {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -342,5 +296,16 @@ watch(
 
 :global(:root[data-theme='light']) .history-panel {
   box-shadow: 0 12px 24px rgba(20, 28, 40, 0.08);
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

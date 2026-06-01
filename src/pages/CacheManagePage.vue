@@ -1,43 +1,82 @@
-<template>
-  <div class="cache-page">
-    <div class="cache-header">
-      <button class="back-btn" type="button" @click="goBack">
+﻿<template>
+  <div class="page-container">
+    <!-- Header -->
+    <div class="flex items-center gap-8px px-16px pt-16px pb-12px flex-shrink-0">
+      <button class="icon-btn w-32px h-32px" type="button" @click="goBack">
         <van-icon name="arrow-left" />
       </button>
-      <h1 class="cache-title">缓存管理</h1>
+      <h1 class="section-title text-18px">缓存管理</h1>
     </div>
 
-    <div class="cache-scroll">
-      <section class="cache-section">
-        <div class="cache-section-title">缓存数据</div>
+    <!-- Scrollable content -->
+    <div class="page-scroll px-16px" style="padding-bottom: calc(var(--tabbar-height) + var(--safe-bottom) + 24px)">
+      <!-- Cache cards section -->
+      <section class="mb-20px">
+        <div class="text-secondary text-14px font-600 mb-10px">缓存数据</div>
 
-        <div class="cache-card" v-for="item in cacheItems" :key="item.key">
-          <div class="cache-card-info">
-            <Icon :name="item.icon" size="20" />
-            <div class="cache-card-text">
-              <span class="cache-card-name">{{ item.label }}</span>
-              <span class="cache-card-desc">{{ item.desc }}</span>
+        <GlassCard
+          v-for="(item, idx) in cacheItems"
+          :key="item.key"
+          tint="soft"
+          :glow="!!stats[item.key]"
+          rounded="md"
+          class="mb-8px animate-fade-in-up"
+          :style="{ animationDelay: `${idx * 60}ms`, 'animation-fill-mode': 'both' }"
+        >
+          <div class="flex items-center justify-between">
+            <!-- Left: icon + text -->
+            <div class="flex items-center gap-12px text-secondary">
+              <Icon :name="item.icon" size="20" />
+              <div class="flex flex-col gap-2px">
+                <span class="text-15px font-500 text-primary">{{ item.label }}</span>
+                <span class="text-12px text-tertiary">{{ item.desc }}</span>
+                <span class="text-11px text-tertiary opacity-70 mt-1px">
+                  <van-icon name="clock-o" size="10" class="mr-2px" />{{ ttlMap[item.key] }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Right: count + clear button -->
+            <div class="flex items-center gap-10px">
+              <span class="text-13px text-secondary tabular-nums">{{ stats[item.key] ?? 0 }} 条</span>
+              <button
+                class="pill-btn text-12px py-6px px-14px disabled:opacity-40 disabled:cursor-not-allowed"
+                type="button"
+                :disabled="!stats[item.key]"
+                @click="clearSingle(item)"
+              >清除</button>
             </div>
           </div>
-          <div class="cache-card-right">
-            <span class="cache-card-count">{{ stats[item.key] ?? 0 }} 条</span>
-            <button class="cache-clear-btn" type="button" :disabled="!stats[item.key]" @click="clearSingle(item)">清除</button>
-          </div>
-        </div>
+        </GlassCard>
       </section>
 
-      <section class="cache-section">
-        <button class="clear-all-btn" type="button" @click="clearAll">
-          <Icon name="icon-delete" size="18" />
-          <span>清除全部缓存</span>
-        </button>
-        <button class="nuke-btn" type="button" @click="nukeAll">
+      <!-- Action buttons section -->
+      <section class="mb-20px animate-fade-in-up" style="animation-delay: 280ms; animation-fill-mode: both">
+        <GlassCard tint="none" rounded="md" class="mb-10px p-0!">
+          <button
+            class="clear-warning-btn flex items-center justify-center gap-8px w-full py-14px text-15px font-600 bg-transparent border-none cursor-pointer active:bg-[var(--surface-2)] transition-colors"
+            type="button"
+            @click="clearAll"
+          >
+            <Icon name="icon-delete" size="18" />
+            <span>清除全部缓存</span>
+          </button>
+        </GlassCard>
+
+        <button
+          class="danger-btn flex items-center justify-center gap-8px w-full py-14px text-15px font-600 border-none rounded-16px cursor-pointer transition-colors"
+          type="button"
+          @click="nukeAll"
+        >
           <Icon name="icon-delete" size="18" />
           <span>彻底清除所有数据</span>
         </button>
       </section>
 
-      <div class="cache-footer">「清除全部缓存」不影响收藏和歌单，「彻底清除」会删除所有数据</div>
+      <!-- Footer -->
+      <div class="text-center text-12px text-[var(--text-quaternary)] py-12px">
+        「清除全部缓存」不影响收藏和歌单，「彻底清除」会删除所有数据
+      </div>
     </div>
   </div>
 </template>
@@ -50,6 +89,7 @@ import { showConfirmDialog, showToast } from 'vant'
 import { dbGetCacheStats, dbClearHistory, dbClearTrackCache, dbClearHomeRecommend, dbClearAllCache, dbNukeAll, type CacheStats } from '@/utils/db'
 import { usePlaylistStore } from '@/stores/playlist'
 import Icon from '@/components/Icon.vue'
+import GlassCard from '@/components/ui/GlassCard.vue'
 
 const router = useRouter()
 const plStore = usePlaylistStore()
@@ -68,6 +108,13 @@ interface CacheItem {
   desc: string
   icon: string
   clear: () => Promise<void>
+}
+
+const ttlMap: Record<string, string> = {
+  history: '2小时过期',
+  trackCache: '2小时过期',
+  homeRecommend: '30分钟过期',
+  searchHistory: '7天过期'
 }
 
 const cacheItems: CacheItem[] = [
@@ -168,183 +215,22 @@ onMounted(refreshStats)
 </script>
 
 <style scoped>
-.cache-page {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: transparent;
+.page-container {
+  background: var(--bg-base);
+  min-height: 100%;
 }
-
-.cache-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 16px 16px 12px;
-  flex-shrink: 0;
-}
-
-.back-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  color: var(--text-primary);
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-}
-
-.cache-title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.cache-scroll {
-  flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding: 0 16px;
-  padding-bottom: calc(var(--tabbar-height) + var(--safe-bottom) + 24px);
-}
-
-.cache-section {
-  margin-bottom: 20px;
-}
-
-.cache-section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 10px;
-}
-
-.cache-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  background: var(--surface-1);
-  border: 1px solid var(--line-soft);
-  border-radius: 16px;
-  margin-bottom: 8px;
-  transition:
-    background 0.3s ease,
-    border-color 0.3s ease;
-}
-
-.cache-card-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--text-secondary);
-}
-
-.cache-card-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.cache-card-name {
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.cache-card-desc {
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
-.cache-card-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.cache-card-count {
-  font-size: 13px;
-  color: var(--text-secondary);
+.tabular-nums {
   font-variant-numeric: tabular-nums;
 }
-
-.cache-clear-btn {
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-primary);
-  background: var(--surface-2);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  touch-action: manipulation;
-  transition:
-    background 0.2s ease,
-    opacity 0.2s ease;
+/* 清除按钮警告色 - 在深浅色模式下都保持红色 */
+.clear-warning-btn {
+  color: #ff3b30 !important;
 }
-
-.cache-clear-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.cache-clear-btn:not(:disabled):active {
-  background: var(--surface-3);
-}
-
-.clear-all-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  padding: 14px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #ff3b30;
-  background: var(--surface-1);
-  border: 1px solid var(--line-soft);
-  border-radius: 16px;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: background 0.2s ease;
-}
-
-.clear-all-btn:active {
-  background: var(--surface-2);
-}
-
-.nuke-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  margin-top: 10px;
-  padding: 14px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #fff;
+.danger-btn {
   background: #ff3b30;
-  border: none;
-  border-radius: 16px;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: background 0.2s ease;
+  color: #fff;
 }
-
-.nuke-btn:active {
+.danger-btn:active {
   background: #d63029;
-}
-
-.cache-footer {
-  text-align: center;
-  font-size: 12px;
-  color: var(--text-quaternary);
-  padding: 12px 0 20px;
 }
 </style>

@@ -155,6 +155,23 @@ export function computeDominantVars(dominantColor: string, isDarkTheme: boolean,
   const glowAlpha = isDarkTheme ? (isDominantLight ? 0.12 : 0.18) : isDominantLight ? 0.08 : 0.1
   const glowStrongAlpha = glowAlpha * 1.6
 
+  // ── 普通模式下的全局变量覆盖（让所有页面自动着色） ──────────────────────
+  // 背景色：添加轻微主导色调
+  const bgBaseMix = isDarkTheme ? 0.05 : 0.03
+  const bgCanvasMix = isDarkTheme ? 0.03 : 0.02
+  const bgSheetMix = isDarkTheme ? 0.08 : 0.05
+  const bgCardMix = isDarkTheme ? 0.1 : 0.06
+
+  // 表面色：使用主导色创建层次差异
+  const surfaceAlpha1 = isDarkTheme ? 0.04 : 0.03
+  const surfaceAlpha2 = isDarkTheme ? 0.06 : 0.05
+  const surfaceAlpha3 = isDarkTheme ? 0.1 : 0.08
+
+  // 边框线：使用主导色透明度
+  const lineSoftAlpha = isDarkTheme ? 0.08 : 0.06
+  const lineStrongAlpha = isDarkTheme ? 0.15 : 0.12
+  const borderLightAlpha = isDarkTheme ? 0.1 : 0.08
+
   return {
     '--dominant-tint-1': tint1,
     '--dominant-tint-2': tint2,
@@ -167,6 +184,22 @@ export function computeDominantVars(dominantColor: string, isDarkTheme: boolean,
     '--dominant-glow-strong': `0 8px 32px ${mixAlpha(rgb, glowStrongAlpha)}`,
     '--dominant-soft': mixColor(dominantColor, bgTarget, isDarkTheme ? 0.72 : 0.82),
     '--dominant-muted': mixColor(dominantColor, bgTarget, isDarkTheme ? 0.48 : 0.82),
-    '--dominant-bright': mixColor(dominantColor, fgTarget, isDarkTheme ? 0.32 : 0.45)
+    '--dominant-bright': mixColor(dominantColor, fgTarget, isDarkTheme ? 0.32 : 0.45),
+    // 全局背景色覆盖 - 让页面背景带有主导色调
+    '--bg-base': mixColor(dominantColor, bgTarget, 1 - bgBaseMix),
+    '--bg-canvas': mixColor(dominantColor, isDarkTheme ? '#090b10' : '#f5f6fa', 1 - bgCanvasMix),
+    '--bg-sheet': mixAlpha(parseColor(mixColor(dominantColor, bgTarget, 1 - bgSheetMix))!, isDarkTheme ? 0.82 : 0.88),
+    '--bg-card': mixAlpha(parseColor(mixColor(dominantColor, bgTarget, 1 - bgCardMix))!, isDarkTheme ? 0.82 : 0.9),
+    // 表面色覆盖 - 使用主导色创建层次
+    '--surface-1': mixAlpha(rgb, surfaceAlpha1),
+    '--surface-2': mixAlpha(rgb, surfaceAlpha2),
+    '--surface-3': mixAlpha(rgb, surfaceAlpha3),
+    // 边框线覆盖 - 使用主导色透明度
+    '--line-soft': mixAlpha(rgb, lineSoftAlpha),
+    '--line-strong': mixAlpha(rgb, lineStrongAlpha),
+    '--border-light': mixAlpha(rgb, borderLightAlpha),
+    // 玻璃效果覆盖 - 使用主导色调
+    '--glass-bg': mixAlpha(parseColor(tint2)!, isDarkTheme ? 0.15 : 0.7),
+    '--glass-border': `1px solid ${mixAlpha(rgb, borderLightAlpha)}`
   }
 }

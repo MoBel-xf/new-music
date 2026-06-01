@@ -16,6 +16,10 @@ interface AppConfigSnapshot {
   keepTabbarDominantColor: boolean
   /** 会话有效期（分钟），超过后重新拉取歌曲详情 */
   sessionTTLMinutes: number
+  /** 首页推荐缓存有效期（分钟），默认 30 */
+  homeRecommendTTLMinutes: number
+  /** 搜索历史保留天数，默认 7 */
+  searchHistoryTTLDays: number
 }
 
 function normalizeKeyword(value: unknown, fallback: string) {
@@ -45,6 +49,10 @@ export const useAppConfigStore = defineStore('app-config', () => {
   const keepTabbarDominantColor = ref(false)
   /** 会话有效期（分钟），默认 60 分钟 */
   const sessionTTLMinutes = ref(60)
+  /** 首页推荐缓存有效期（分钟），默认 30 */
+  const homeRecommendTTLMinutes = ref(30)
+  /** 搜索历史保留天数，默认 7 */
+  const searchHistoryTTLDays = ref(7)
 
   function applySnapshot(snapshot?: Partial<AppConfigSnapshot>) {
     homeQueryKeyword.value = normalizeKeyword(snapshot?.homeQueryKeyword, DEFAULT_HOME_QUERY_KEYWORD)
@@ -55,6 +63,8 @@ export const useAppConfigStore = defineStore('app-config', () => {
     colorPrefetchCount.value = normalizeCount(snapshot?.colorPrefetchCount, 6, 0, 16)
     keepTabbarDominantColor.value = normalizeBoolean(snapshot?.keepTabbarDominantColor, false)
     sessionTTLMinutes.value = normalizeCount(snapshot?.sessionTTLMinutes, 60, 5, 1440)
+    homeRecommendTTLMinutes.value = normalizeCount(snapshot?.homeRecommendTTLMinutes, 30, 5, 120)
+    searchHistoryTTLDays.value = normalizeCount(snapshot?.searchHistoryTTLDays, 7, 1, 30)
   }
 
   function load() {
@@ -78,7 +88,9 @@ export const useAppConfigStore = defineStore('app-config', () => {
       prefetchCount: prefetchCount.value,
       colorPrefetchCount: colorPrefetchCount.value,
       keepTabbarDominantColor: keepTabbarDominantColor.value,
-      sessionTTLMinutes: sessionTTLMinutes.value
+      sessionTTLMinutes: sessionTTLMinutes.value,
+      homeRecommendTTLMinutes: homeRecommendTTLMinutes.value,
+      searchHistoryTTLDays: searchHistoryTTLDays.value
     }
     window.localStorage.setItem(APP_CONFIG_KEY, JSON.stringify(snapshot))
   }
@@ -92,7 +104,9 @@ export const useAppConfigStore = defineStore('app-config', () => {
       prefetchCount: snapshot.prefetchCount ?? prefetchCount.value,
       colorPrefetchCount: snapshot.colorPrefetchCount ?? colorPrefetchCount.value,
       keepTabbarDominantColor: snapshot.keepTabbarDominantColor ?? keepTabbarDominantColor.value,
-      sessionTTLMinutes: snapshot.sessionTTLMinutes ?? sessionTTLMinutes.value
+      sessionTTLMinutes: snapshot.sessionTTLMinutes ?? sessionTTLMinutes.value,
+      homeRecommendTTLMinutes: snapshot.homeRecommendTTLMinutes ?? homeRecommendTTLMinutes.value,
+      searchHistoryTTLDays: snapshot.searchHistoryTTLDays ?? searchHistoryTTLDays.value
     })
   }
 
@@ -107,7 +121,9 @@ export const useAppConfigStore = defineStore('app-config', () => {
       prefetchCount,
       colorPrefetchCount,
       keepTabbarDominantColor,
-      sessionTTLMinutes
+      sessionTTLMinutes,
+      homeRecommendTTLMinutes,
+      searchHistoryTTLDays
     ],
     () => {
       save()
@@ -123,6 +139,8 @@ export const useAppConfigStore = defineStore('app-config', () => {
     colorPrefetchCount,
     keepTabbarDominantColor,
     sessionTTLMinutes,
+    homeRecommendTTLMinutes,
+    searchHistoryTTLDays,
     patchConfig
   }
 })

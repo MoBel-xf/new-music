@@ -1,19 +1,19 @@
-﻿<template>
+<template>
   <div class="detail-page" :class="{ 'collection-mode': isCollectionMode }">
     <template v-if="isCollectionMode">
       <div class="collection-hero" :style="heroStyle">
         <div class="hero-top">
-          <button class="hero-icon-btn" @click="router.back()">
+          <button class="icon-btn" @click="router.back()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
           </button>
           <div class="hero-top-right">
-            <button v-if="mode === 'playlist' && !isEditing" class="hero-icon-btn" @click="isEditing = true">
+            <button v-if="mode === 'playlist' && !isEditing" class="icon-btn" @click="isEditing = true">
               <Icon name="icon-more" size="18" />
             </button>
-            <button v-if="isEditing" class="hero-edit-done-btn" @click="isEditing = false">完成</button>
-            <button class="hero-icon-btn" @click="playShuffle" :disabled="!tracks.length">
+            <button v-if="isEditing" class="pill-btn" @click="isEditing = false">完成</button>
+            <button class="icon-btn" @click="playShuffle" :disabled="!tracks.length">
               <Icon name="icon-shuffle" size="18" />
             </button>
           </div>
@@ -25,11 +25,11 @@
         </div>
 
         <div class="hero-actions">
-          <button class="hero-play-btn" @click="playAll" :disabled="!tracks.length">
+          <button class="hero-play-btn glass-panel" @click="playAll" :disabled="!tracks.length">
             <Icon name="icon-play" size="18" />
             <span>播放全部</span>
           </button>
-          <button class="hero-shuffle-btn" @click="playShuffle" :disabled="!tracks.length">
+          <button class="hero-shuffle-btn glass-panel" @click="playShuffle" :disabled="!tracks.length">
             <Icon name="icon-shuffle" size="18" />
           </button>
         </div>
@@ -71,24 +71,36 @@
       </div>
 
       <template v-else-if="isCollectionMode">
-        <div v-for="(track, i) in tracks" :key="track.uid" class="collection-row-wrap" :class="{ featured: i === 0 }">
+        <div
+          v-for="(track, i) in tracks"
+          :key="track.uid"
+          class="collection-row-wrap"
+          :class="{ featured: i === 0 }"
+          :style="{ '--i': i }"
+        >
           <van-swipe-cell :disabled="mode === 'history'">
-            <div class="collection-row" role="button" tabindex="0" @click="isEditing ? toggleSelect(track.uid) : playTrackInList(track)">
+            <div
+              class="collection-row"
+              :class="{ 'glass-card': i === 0 }"
+              role="button"
+              tabindex="0"
+              @click="isEditing ? toggleSelect(track.uid) : playTrackInList(track)"
+            >
               <van-checkbox v-if="isEditing" v-model="selected" :name="track.uid" class="collection-checkbox" @click.stop />
               <div class="collection-cover">
                 <img v-if="track.cover" :src="track.cover" referrerpolicy="no-referrer" :alt="track.title" />
-                <div v-else class="collection-cover-fallback">
+                <div v-else class="collection-cover-fallback dominant-surface">
                   <Icon name="icon-music" size="18" />
                 </div>
               </div>
 
               <div class="collection-meta">
-                <p class="collection-title">{{ track.title }}</p>
-                <p class="collection-sub">{{ track.artist || '未知歌手' }}</p>
+                <p class="collection-title text-primary">{{ track.title }}</p>
+                <p class="collection-sub text-secondary">{{ track.artist || '未知歌手' }}</p>
               </div>
 
               <div class="collection-right">
-                <span class="collection-duration">{{ formatTrackTime(track.duration) }}</span>
+                <span class="collection-duration text-secondary">{{ formatTrackTime(track.duration) }}</span>
                 <button class="collection-more" type="button" @click.stop="openAction(track)">
                   <Icon name="icon-more" size="16" />
                 </button>
@@ -104,12 +116,12 @@
       </template>
 
       <template v-else>
-        <div v-for="track in tracks" :key="track.uid" class="track-row-wrap">
+        <div v-for="(track, i) in tracks" :key="track.uid" class="track-row-wrap" :style="{ '--i': i }">
           <div v-if="isEditing" class="track-row editing">
             <van-checkbox v-model="selected" :name="track.uid" />
             <div class="track-info" @click="toggleSelect(track.uid)">
-              <p class="t-title">{{ track.title }}</p>
-              <p class="t-sub">{{ track.artist }} <SourceBadge :source="track.source" /></p>
+              <p class="t-title text-primary">{{ track.title }}</p>
+              <p class="t-sub text-secondary"><SourceBadge :source="track.source" /></p>
             </div>
           </div>
 
@@ -129,8 +141,8 @@
       </template>
     </div>
 
-    <div v-if="isEditing" class="edit-bar">
-      <span class="sel-count">已选择 {{ selected.length }} 首歌曲</span>
+    <div v-if="isEditing" class="edit-bar glass-panel">
+      <span class="sel-count text-secondary">已选择 {{ selected.length }} 首歌曲</span>
       <button class="del-sel-btn" :disabled="!selected.length" @click="deleteSelected">删除所选</button>
     </div>
 
@@ -298,284 +310,218 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* ── Base layout ── */
 .detail-page {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+  @apply flex flex-col h-full;
   background: transparent;
 }
 
 .collection-mode {
-  position: relative;
+  @apply relative;
 }
 
+/* ── Fade-in-up stagger animation ── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.collection-row-wrap,
+.track-row-wrap {
+  animation: fadeInUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 38ms);
+}
+
+/* ── Hero section ── */
 .collection-hero {
-  position: relative;
-  overflow: hidden;
-  border-radius: 0 0 30px 30px;
-  margin: 0 0 8px;
-  padding: 14px 14px 20px;
+  @apply relative overflow-hidden rounded-b-[30px] mx-0 mb-2 px-3.5 pb-5;
   min-height: 232px;
   box-shadow: var(--shadow-float);
 }
 
 .collection-hero::after {
   content: '';
-  position: absolute;
-  inset: 0;
+  @apply absolute inset-0 pointer-events-none;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.38) 100%);
-  pointer-events: none;
 }
 
 .hero-top,
 .hero-main,
 .hero-actions {
-  position: relative;
-  z-index: 1;
+  @apply relative z-1;
 }
 
 .hero-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  @apply flex items-center justify-between;
 }
 
 .hero-top-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  @apply flex items-center gap-2;
 }
 
-.hero-icon-btn {
-  width: 38px;
-  height: 38px;
+/* Glass-morphism icon buttons for hero */
+.icon-btn {
+  @apply w-[38px] h-[38px] rounded-full flex items-center justify-center text-primary;
   border: 1px solid var(--line-strong);
-  background: var(--surface-2);
-  color: var(--text-primary);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: color-mix(in srgb, var(--surface-2) 75%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
 
-.hero-icon-btn:disabled {
-  opacity: 0.5;
+.icon-btn:disabled {
+  @apply opacity-50;
 }
 
-.hero-edit-done-btn {
-  padding: 6px 14px;
+/* Glass pill button */
+.pill-btn {
+  @apply px-3.5 py-1.5 rounded-full text-[13px] font-bold text-primary;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--surface-3) 80%, transparent);
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 700;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
 
 .collection-checkbox {
-  flex-shrink: 0;
+  @apply shrink-0;
 }
 
 .hero-main {
-  margin-top: 48px;
+  @apply mt-12;
 }
 
 .hero-title {
-  margin: 0;
-  font-size: 52px;
-  line-height: 1;
+  @apply m-0 text-[52px] leading-none tracking-tight font-extrabold text-primary;
   letter-spacing: -0.04em;
-  font-weight: 800;
-  color: var(--text-primary);
 }
 
 .hero-sub {
-  margin: 8px 0 0;
-  font-size: 16px;
-  color: var(--text-secondary);
+  @apply mt-2 text-base text-secondary;
 }
 
 .hero-actions {
-  margin-top: 18px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  @apply mt-[18px] flex items-center gap-2.5;
 }
 
+/* Glass-morphism play / shuffle buttons */
 .hero-play-btn {
-  flex: 1;
+  @apply flex-1 flex items-center justify-center gap-2 py-[15px] px-3 text-lg font-bold text-primary rounded-[18px];
   border: 1px solid var(--line-strong);
-  border-radius: 18px;
-  padding: 15px 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
   background: color-mix(in srgb, var(--surface-3) 80%, transparent);
-  color: var(--text-primary);
-  font-size: 18px;
-  font-weight: 700;
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
 
 .hero-shuffle-btn {
-  width: 70px;
+  @apply w-[70px] flex items-center justify-center py-[15px] text-primary rounded-[18px];
   border: 1px solid var(--line-strong);
-  border-radius: 18px;
-  padding: 15px 0;
   background: color-mix(in srgb, var(--surface-2) 82%, transparent);
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
 
 .hero-play-btn:disabled,
 .hero-shuffle-btn:disabled {
-  opacity: 0.5;
+  @apply opacity-50;
 }
 
+/* ── Non-collection banner (kept as-is) ── */
 .banner {
-  flex-shrink: 0;
-  margin: 8px 12px 0;
-  padding: 16px 16px 24px;
-  position: relative;
-  border-radius: 30px;
-  overflow: hidden;
+  @apply shrink-0 relative overflow-hidden rounded-[30px] mx-3 mt-2 px-4 pb-6 pt-4;
   box-shadow: var(--shadow-card);
 }
+
 .banner::after {
   content: '';
-  position: absolute;
+  @apply absolute rounded-full;
   inset: auto -24px -48px auto;
   width: 120px;
   height: 120px;
-  border-radius: 50%;
   background: rgba(255, 255, 255, 0.14);
 }
+
 .back-btn {
-  width: 38px;
-  height: 38px;
+  @apply w-[38px] h-[38px] rounded-full flex items-center justify-center text-primary mb-4 cursor-pointer;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.12);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-primary);
-  cursor: pointer;
-  margin-bottom: 16px;
   backdrop-filter: blur(12px);
 }
+
 .banner-content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+  @apply flex items-center gap-4;
 }
+
 .banner-icon {
-  width: 72px;
-  height: 72px;
-  font-size: 34px;
-  border-radius: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  @apply w-[72px] h-[72px] text-[34px] rounded-[22px] flex items-center justify-center;
   background: rgba(255, 255, 255, 0.14);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
 }
+
 .banner-title {
-  margin: 0;
-  font-size: 26px;
-  font-weight: 800;
-  color: var(--text-primary);
+  @apply m-0 text-[26px] font-extrabold text-primary;
   letter-spacing: -0.04em;
 }
+
 .banner-sub {
-  margin: 6px 0 0;
-  font-size: 13px;
+  @apply mt-1.5 text-[13px];
   color: rgba(255, 255, 255, 0.82);
 }
 
+/* ── Action bar (non-collection) ── */
 .action-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 12px 12px 0;
-  padding: 12px;
+  @apply flex items-center gap-2.5 mx-3 mt-3 px-3 py-3 shrink-0;
   background: radial-gradient(circle at 50% 0%, var(--dominant-tint-2) 0%, transparent 50%), rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   border: 1px solid var(--dominant-border);
   border-radius: 22px;
-  flex-shrink: 0;
   box-shadow: var(--dominant-glow);
-  transition:
-    border-color 0.5s ease,
-    box-shadow 0.5s ease;
-}
-.play-all-btn {
-  flex: 1;
-  border: none;
-  background: var(--brand-grad);
-  color: var(--text-on-brand);
-  font-size: 14px;
-  font-weight: 700;
-  padding: 10px 0;
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  box-shadow: var(--dominant-glow-strong);
-}
-.shuffle-btn {
-  border: 1px solid var(--dominant-border);
-  background: var(--dominant-tint-1);
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 600;
-  padding: 9px 16px;
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  transition:
-    border-color 0.5s ease,
-    background 0.5s ease;
-}
-.play-all-btn:disabled,
-.shuffle-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.edit-btn {
-  border: 1px solid var(--dominant-border);
-  background: var(--dominant-tint-1);
-  font-size: 13px;
-  color: var(--text-primary);
-  padding: 9px 14px;
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  transition:
-    border-color 0.5s ease,
-    background 0.5s ease;
-}
-.edit-done-btn {
-  border: none;
-  background: var(--brand-grad);
-  color: var(--text-on-brand);
-  font-size: 13px;
-  font-weight: 700;
-  padding: 9px 16px;
-  border-radius: var(--radius-full);
-  cursor: pointer;
+  transition: border-color 0.5s ease, box-shadow 0.5s ease;
 }
 
+.play-all-btn {
+  @apply flex-1 border-none text-sm font-bold py-2.5 text-on-brand cursor-pointer;
+  background: var(--brand-grad);
+  border-radius: var(--radius-full);
+  box-shadow: var(--dominant-glow-strong);
+}
+
+.shuffle-btn {
+  @apply text-[13px] font-semibold py-[9px] px-4 cursor-pointer;
+  border: 1px solid var(--dominant-border);
+  background: var(--dominant-tint-1);
+  color: var(--text-primary);
+  border-radius: var(--radius-full);
+  transition: border-color 0.5s ease, background 0.5s ease;
+}
+
+.play-all-btn:disabled,
+.shuffle-btn:disabled {
+  @apply opacity-50 cursor-default;
+}
+
+.edit-btn {
+  @apply text-[13px] text-primary py-[9px] px-3.5 cursor-pointer;
+  border: 1px solid var(--dominant-border);
+  background: var(--dominant-tint-1);
+  border-radius: var(--radius-full);
+  transition: border-color 0.5s ease, background 0.5s ease;
+}
+
+.edit-done-btn {
+  @apply border-none text-[13px] font-bold py-[9px] px-4 text-on-brand cursor-pointer;
+  background: var(--brand-grad);
+  border-radius: var(--radius-full);
+}
+
+/* ── Track list ── */
 .track-list {
-  flex: 1;
-  overflow-y: auto;
+  @apply flex-1 overflow-y-auto;
   -webkit-overflow-scrolling: touch;
   background: transparent;
   padding: 12px 12px calc(var(--playerbar-height) + var(--tabbar-height) + var(--safe-bottom) + 60px);
@@ -586,53 +532,42 @@ onMounted(() => {
 }
 
 .empty-tip {
-  text-align: center;
-  padding: 48px 20px;
-  font-size: 15px;
-  color: var(--text-tertiary);
+  @apply text-center py-12 px-5 text-[15px] text-tertiary;
   border: 1px dashed var(--dominant-border);
   border-radius: 24px;
   background: var(--dominant-tint-1);
-  transition:
-    border-color 0.5s ease,
-    background 0.5s ease;
+  transition: border-color 0.5s ease, background 0.5s ease;
 }
 
+/* Glass-morphism track rows */
 .track-row-wrap {
+  @apply rounded-[20px] mb-2.5 overflow-hidden;
   background: radial-gradient(circle at 90% 20%, var(--dominant-tint-1) 0%, transparent 40%), rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   border: 1px solid var(--dominant-border);
-  border-radius: 20px;
-  margin-bottom: 10px;
-  overflow: hidden;
   transition: border-color 0.5s ease;
 }
 
+/* ── Collection rows ── */
 .collection-row-wrap {
-  border-bottom: 1px solid var(--line-soft);
+  @apply border-b border-solid;
+  border-color: var(--line-soft);
 }
 
 .collection-row-wrap.featured {
-  border-bottom: none;
-  margin-bottom: 8px;
+  @apply border-b-0 mb-2;
 }
 
 .collection-row {
-  width: 100%;
+  @apply w-full flex items-center gap-3 py-3 px-0.5 text-left;
   border: none;
   background: transparent;
   color: inherit;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 2px;
-  text-align: left;
 }
 
 .collection-row-wrap.featured .collection-row {
-  padding: 12px;
-  border-radius: 18px;
+  @apply p-3 rounded-[18px];
   border: 1px solid var(--line-strong);
   background: color-mix(in srgb, var(--surface-2) 78%, transparent);
   backdrop-filter: blur(12px);
@@ -640,154 +575,99 @@ onMounted(() => {
 }
 
 .collection-cover {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  overflow: hidden;
+  @apply w-14 h-14 rounded-xl overflow-hidden shrink-0 flex items-center justify-center;
   background: var(--surface-2);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .collection-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  @apply w-full h-full object-cover;
 }
 
 .collection-cover-fallback {
-  color: var(--text-secondary);
+  @apply text-secondary;
 }
 
 .collection-meta {
-  flex: 1;
-  min-width: 0;
+  @apply flex-1 min-w-0;
 }
 
 .collection-title {
-  margin: 0;
-  font-size: 16px;
-  color: var(--text-primary);
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  @apply m-0 text-base font-semibold text-primary whitespace-nowrap overflow-hidden text-ellipsis;
 }
 
 .collection-sub {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  @apply mt-1 text-[13px] text-secondary whitespace-nowrap overflow-hidden text-ellipsis;
 }
 
 .collection-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  @apply flex items-center gap-1.5;
 }
 
 .collection-duration {
-  font-size: 14px;
-  color: var(--text-secondary);
-  min-width: 44px;
-  text-align: right;
+  @apply text-sm text-secondary min-w-[44px] text-right;
 }
 
 .collection-more {
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 50%;
+  @apply w-[26px] h-[26px] border-none rounded-full flex items-center justify-center text-secondary;
   background: transparent;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
+/* ── Edit mode rows ── */
 .track-row.editing {
-  display: flex;
-  align-items: center;
-  padding: 10px 16px;
-  gap: 12px;
+  @apply flex items-center py-2.5 px-4 gap-3;
   background: transparent;
 }
+
 .track-info {
-  flex: 1;
-  min-width: 0;
+  @apply flex-1 min-w-0;
 }
+
 .t-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary);
+  @apply m-0 text-sm font-medium text-primary;
 }
+
 .t-sub {
-  margin: 3px 0 0;
-  font-size: 12px;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  @apply mt-[3px] text-xs text-secondary flex items-center gap-1.5;
 }
 
+/* ── Swipe delete ── */
 .delete-swipe {
+  @apply border-none h-full py-0 px-5 text-[13px] font-semibold text-primary cursor-pointer;
   background: color-mix(in srgb, var(--dominant-color) 74%, rgba(0, 0, 0, 0.12));
-  color: var(--text-primary);
-  border: none;
-  height: 100%;
-  padding: 0 20px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
 }
 
+/* ── Glass-morphism edit bar ── */
 .edit-bar {
-  position: fixed;
+  @apply fixed flex items-center justify-between py-3 px-5;
   bottom: calc(var(--tabbar-height) + var(--playerbar-height) + var(--safe-bottom));
   left: 12px;
   right: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
   background: radial-gradient(circle at 50% 0%, var(--dominant-tint-2) 0%, transparent 60%), rgba(255, 255, 255, 0.08);
   border: 1px solid var(--dominant-border);
   border-radius: 22px;
   box-shadow: var(--dominant-glow-strong);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  transition:
-    border-color 0.5s ease,
-    box-shadow 0.5s ease;
+  transition: border-color 0.5s ease, box-shadow 0.5s ease;
 }
+
 .sel-count {
-  font-size: 14px;
-  color: var(--text-secondary);
+  @apply text-sm text-secondary;
 }
+
 .del-sel-btn {
-  border: none;
+  @apply border-none text-sm font-semibold py-2 px-5 text-primary cursor-pointer;
   background: color-mix(in srgb, var(--dominant-color) 74%, rgba(0, 0, 0, 0.12));
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 600;
-  padding: 8px 20px;
   border-radius: var(--radius-full);
-  cursor: pointer;
 }
+
 .del-sel-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
+  @apply opacity-40 cursor-default;
 }
 
 @media (max-width: 420px) {
   .hero-title {
-    font-size: 44px;
+    @apply text-[44px];
   }
 }
 </style>

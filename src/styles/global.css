@@ -18,7 +18,7 @@ body,
   width: 100%;
   height: var(--app-height);
   min-height: var(--app-height);
-  font-family: 'Avenir Next', 'PingFang SC', 'Helvetica Neue', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'PingFang SC', sans-serif;
   background: var(--bg-base);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;

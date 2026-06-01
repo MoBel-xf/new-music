@@ -1,6 +1,10 @@
 <template>
   <ImmersiveBackground />
-  <router-view />
+  <router-view v-slot="{ Component, route: currentRoute }">
+    <transition name="fade" mode="out-in">
+      <component :is="Component" :key="currentRoute.path" />
+    </transition>
+  </router-view>
 </template>
 
 <script setup lang="ts">

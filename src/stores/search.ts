@@ -10,8 +10,9 @@ import * as kuwoApi from '@/api/kuwo'
 import type { SearchOptions } from '@/types/music'
 
 const SEARCH_PREFS_KEY = 'xf-search-prefs-v1'
-const SEARCH_HISTORY_KEY = 'xf-search-history-v1'
+const SEARCH_HISTORY_KEY = 'xf-search-history-v2'
 const SEARCH_HISTORY_LIMIT = 12
+const SEARCH_HISTORY_TTL = 7 * 24 * 60 * 60 * 1000 // 7 天过期
 
 interface SearchPrefs {
   enabledSources: MusicSource[]
@@ -83,11 +84,22 @@ export const useSearchStore = defineStore('search', () => {
       const raw = window.localStorage.getItem(SEARCH_HISTORY_KEY)
       if (!raw) return
       const history = JSON.parse(raw)
-      if (!Array.isArray(history)) return
-      historyKeywords.value = history
-        .map((item) => String(item).trim())
-        .filter(Boolean)
-        .slice(0, SEARCH_HISTORY_LIMIT)
+      if (!Array.isArray(history)) {
+        historyKeywords.value = []
+        return
+      }
+      const now = Date.now()
+      // 兼容旧格式（纯字符串数组）和新格式（带时间戳）
+      const entries = history
+        .map((item) => {
+          if (typeof item === 'string') return { keyword: item.trim(), timestamp: now }
+          if (item && typeof item.keyword === 'string') return { keyword: item.keyword.trim(), timestamp: item.timestamp || now }
+          return null
+        })
+        .filter((e): e is { keyword: string; timestamp: number } => !!e && !!e.keyword && now - e.timestamp < SEARCH_HISTORY_TTL)
+      historyKeywords.value = entries.map((e) => e.keyword).slice(0, SEARCH_HISTORY_LIMIT)
+      // 如果有过期条目被过滤，立即保存清理后的数据
+      if (entries.length !== history.length) saveHistory()
     } catch {
       historyKeywords.value = []
     }
@@ -104,7 +116,8 @@ export const useSearchStore = defineStore('search', () => {
 
   function saveHistory() {
     if (typeof window === 'undefined') return
-    window.localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(historyKeywords.value))
+    const entries = historyKeywords.value.map((kw) => ({ keyword: kw, timestamp: Date.now() }))
+    window.localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(entries))
   }
 
   function pushHistory(rawKeyword: string) {

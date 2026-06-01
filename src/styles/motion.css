@@ -63,3 +63,43 @@
     opacity: 1;
   }
 }
+
+/* ── Page Transitions ────────────────────────────────────────────────────── */
+
+/* Fade transition (tab routes) */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* Slide up transition (secondary routes) */
+.slide-up-enter-active {
+  transition: transform 0.35s cubic-bezier(0.22, 0.68, 0.32, 1), opacity 0.35s ease;
+}
+.slide-up-leave-active {
+  transition: transform 0.28s cubic-bezier(0.55, 0, 1, 0.45), opacity 0.28s ease;
+}
+.slide-up-enter-from {
+  transform: translateY(100%);
+  opacity: 0;
+}
+.slide-up-leave-to {
+  transform: translateY(-20px);
+  opacity: 0;
+}
+
+/* ── List Item Stagger ───────────────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

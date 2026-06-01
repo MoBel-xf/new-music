@@ -1,4 +1,4 @@
-// src/stores/player.ts
+﻿// src/stores/player.ts
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Track, LyricLine, PlayMode, PlayContext } from '@/types/music'
@@ -72,6 +72,7 @@ export const usePlayerStore = defineStore('player', () => {
   let isRestoringSession = false
   let sessionSaveTimer: ReturnType<typeof setTimeout> | null = null
   let currentColorTaskId = 0
+  let _playSwitchGeneration = 0
 
   // ── 颜色提取 ─────────────────────────────────────────────────────────────
   const { extract, peek, prefetch } = useColorExtract()
@@ -272,7 +273,7 @@ export const usePlayerStore = defineStore('player', () => {
       _audio.addEventListener('error', () => {
         isPlaying.value = false
         syncMediaSessionState()
-        // 音频加载失败时清除缓存并重新获取
+        // 音频加载失败：清除缓存、从队列移除、自动播放下一首
         const failedTrack = currentTrack.value
         if (failedTrack && !failedTrack._retried) {
           dbDeleteCachedTrack(failedTrack.uid).catch(() => {})
@@ -280,7 +281,17 @@ export const usePlayerStore = defineStore('player', () => {
           showToast('音频链接失效，正在重新获取…')
           playTrack(retry)
         } else {
-          showToast('音频加载失败，请尝试其他音源')
+          showToast('播放失败，已移除')
+          if (failedTrack) {
+            const removeIdx = queue.value.findIndex(x => x.uid === failedTrack.uid)
+            if (removeIdx !== -1) queue.value.splice(removeIdx, 1)
+          }
+          if (queue.value.length) {
+            playNext('next')
+          } else {
+            currentTrack.value = null
+            currentTime.value = 0; duration.value = 0; progress.value = 0
+          }
         }
       })
       _audio.addEventListener('loadedmetadata', () => {
@@ -533,6 +544,13 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   async function playTrack(track: Track, newQueue?: Track[], context?: PlayContext) {
+    // 生成切换代数，防止过期异步操作覆盖新状态
+    const switchGen = ++_playSwitchGeneration
+
+    // 立即停止当前音频，重置进度，防止旧歌曲 timeupdate 事件干扰
+    if (_audio) { _audio.pause(); _audio.removeAttribute('src'); _audio.load() }
+    currentTime.value = 0; duration.value = 0; progress.value = 0; isPlaying.value = false
+
     // 先设置队列和上下文（让 UI 立即响应）
     if (newQueue) {
       queue.value = newQueue
@@ -562,6 +580,9 @@ export const usePlayerStore = defineStore('player', () => {
     syncMediaSessionMetadata()
 
     // 没有预加载缓存时才走网络请求
+    // 代数守卫：如果在异步获取详情期间又切了歌，直接丢弃
+    if (switchGen !== _playSwitchGeneration) return
+
     if (!prefetched && shouldFetchDetails(t)) {
       const cached = await dbGetCachedTrack(t.uid)
       if (cached && !shouldFetchDetails(cached)) {
@@ -600,23 +621,47 @@ export const usePlayerStore = defineStore('player', () => {
     cleanPrefetchCache(t.uid)
     void prefetchAhead()
 
+    // 再次代数守卫
+    if (switchGen !== _playSwitchGeneration) return
+
     if (!t.audioUrl) {
-      showToast('暂无可用音源')
+      showToast('暂无可用音源，已跳过')
+      const removeIdx = queue.value.findIndex(x => x.uid === t.uid)
+      if (removeIdx !== -1) queue.value.splice(removeIdx, 1)
+      if (queue.value.length) {
+        setTimeout(() => playNext('next'), 300)
+      } else {
+        currentTrack.value = null
+        currentTime.value = 0; duration.value = 0; progress.value = 0
+      }
       return
     }
 
     const a = getAudio()
     a.src = t.audioUrl
     a.currentTime = 0
-    await a.play().catch((err) => {
+    // 再次确保进度重置，防止timeupdate事件干扰
+    currentTime.value = 0; duration.value = 0; progress.value = 0
+    try {
+      await a.play()
+    } catch (err: any) {
       if (err?.name === 'AbortError') return
       if (err?.name === 'NotAllowedError') {
         pendingAutoPlay.value = true
         return
       }
       console.warn('[play error]', err)
-      showToast('播放失败，请检查网络')
-    })
+      showToast('播放失败，已跳过')
+      // 播放失败时从队列移除并自动下一首
+      const removeIdx = queue.value.findIndex(x => x.uid === t.uid)
+      if (removeIdx !== -1) queue.value.splice(removeIdx, 1)
+      if (queue.value.length) {
+        setTimeout(() => playNext('next'), 300)
+      } else {
+        currentTrack.value = null
+        currentTime.value = 0; duration.value = 0; progress.value = 0
+      }
+    }
   }
 
   // 搜索场景：插入歌曲到当前播放位置之后并播放，不替换整个队列

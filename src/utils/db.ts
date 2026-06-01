@@ -177,12 +177,21 @@ export async function dbSetCachedTrack(track: Track): Promise<void> {
   }
 }
 
-// ── 首页推荐缓存 ───────────────────────────────────────────────────────────
-export async function dbGetHomeRecommend(cacheKey?: string): Promise<Track[] | null> {
+// ── 首页推荐缓存（带 TTL）──────────────────────────────────────────────────
+const HOME_RECOMMEND_TTL = 30 * 60 * 1000 // 默认 30 分钟过期
+
+export async function dbGetHomeRecommend(cacheKey?: string, ttlMs?: number): Promise<Track[] | null> {
   try {
     const db = await getDB()
     const item: { id: string; tracks: Track[]; updatedAt: number } | undefined = await db.get('home_recommend', buildHomeRecommendKey(cacheKey))
     if (!item || !Array.isArray(item.tracks) || !item.tracks.length) return null
+    // 如果ttlMs为0或undefined，不检查过期时间
+    if (ttlMs && ttlMs > 0) {
+      if (Date.now() - item.updatedAt > ttlMs) {
+        db.delete('home_recommend', buildHomeRecommendKey(cacheKey))
+        return null
+      }
+    }
     return item.tracks
   } catch {
     return null
@@ -199,6 +208,17 @@ export async function dbSetHomeRecommend(tracks: Track[], cacheKey?: string): Pr
     })
   } catch {
     // 忽略缓存失败
+  }
+}
+
+/** 获取首页推荐缓存的更新时间戳，用于显示"上次刷新时间" */
+export async function dbGetHomeRecommendUpdatedAt(cacheKey?: string): Promise<number | null> {
+  try {
+    const db = await getDB()
+    const item: { id: string; updatedAt: number } | undefined = await db.get('home_recommend', buildHomeRecommendKey(cacheKey))
+    return item?.updatedAt ?? null
+  } catch {
+    return null
   }
 }
 

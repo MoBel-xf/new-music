@@ -2,9 +2,11 @@
   <div class="app-layout" @click.capture="player.resumePendingPlay" @touchstart.capture.passive="player.resumePendingPlay">
     <main class="layout-body">
       <router-view v-slot="{ Component, route: currentRoute }">
-        <keep-alive :include="['HomePage', 'MinePage']">
-          <component :is="Component" :key="currentRoute.name" />
-        </keep-alive>
+        <transition :name="getTransitionName(currentRoute)" mode="out-in">
+          <keep-alive :include="['HomePage', 'MinePage']">
+            <component :is="Component" :key="currentRoute.name" />
+          </keep-alive>
+        </transition>
       </router-view>
     </main>
 
@@ -129,6 +131,15 @@ const tabbarStyle = computed(() => {
 })
 
 const routeTab = computed(() => routeTabMap[route.name as string] ?? 'home')
+
+const SECONDARY_ROUTES = new Set(['search', 'playlist', 'favorites', 'history', 'cache'])
+const TAB_ORDER: Record<string, number> = { home: 0, play: 1, mine: 2 }
+
+function getTransitionName(currentRoute: { name?: string | symbol | null }) {
+  const name = String(currentRoute.name ?? '')
+  if (SECONDARY_ROUTES.has(name)) return 'slide-up'
+  return 'fade'
+}
 const ringPath = computed(() => {
   const strokeInset = 1
   const width = Math.max(4, ringBox.value.width - strokeInset * 2)

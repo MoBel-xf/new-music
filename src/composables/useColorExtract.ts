@@ -85,6 +85,13 @@ function peek(imageUrl: string) {
 function extractFromUrl(url: string): Promise<string> {
   if (!url || typeof window === 'undefined') return Promise.resolve(DEFAULT_COLOR)
 
+  // 跳过已知 CORS 无法访问的域名
+  const BLOCKED_HOSTS = ['d.musicapp.migu.cn', 'm.musicapp.migu.cn']
+  try {
+    const host = new URL(url.replace(/^http:\/\//i, 'https://')).hostname
+    if (BLOCKED_HOSTS.includes(host)) return Promise.resolve(DEFAULT_COLOR)
+  } catch { /* ignore */ }
+
   return new Promise((resolve) => {
     const candidates = buildImageCandidates(url)
 
