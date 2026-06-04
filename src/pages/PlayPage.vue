@@ -303,7 +303,9 @@ const pageToneStyle = computed(() => {
   const isLight = isLightBg.value
   const textPrimary = isLight ? '#000000' : '#FFFFFF'
   const textSecondary = isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)'
-  const controlBg = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)'
+  // 控制按钮背景：更高对比度，确保在沉浸色下可见
+  const controlBg = isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.18)'
+  const controlBorder = isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.22)'
   const accentBright = mixColor(accent, '#FFFFFF', isLight ? 0.24 : 0.32)
   const bgGlow = mixColor(accent, isLight ? '#FFFFFF' : '#1A1A2E', isLight ? 0.56 : 0.12)
   const bgStart = mixColor(accent, isLight ? '#FFF7EF' : '#1A1A2E', isLight ? 0.82 : 0.08)
@@ -323,6 +325,7 @@ const pageToneStyle = computed(() => {
     '--page-text-secondary': textSecondary,
     '--page-icon-color': textPrimary,
     '--page-control-bg': controlBg,
+    '--page-control-border': controlBorder,
     '--page-progress-fill': `linear-gradient(90deg, ${accentBright}, ${accent})`,
     '--page-progress-track': isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)',
     '--page-vh': `${viewportHeight.value}px`,
@@ -584,7 +587,7 @@ watch(
 .top-action-btn {
   width: 40px;
   height: 40px;
-  border: 1px solid var(--page-control-bg);
+  border: 1px solid var(--page-control-border, var(--page-control-bg));
   background: var(--page-control-bg);
   border-radius: 50%;
   display: flex;
@@ -775,7 +778,7 @@ watch(
   width: 42px;
   height: 42px;
   flex-shrink: 0;
-  border: 1px solid var(--page-control-bg);
+  border: 1px solid var(--page-control-border, var(--page-control-bg));
   border-radius: 50%;
   display: flex;
   align-items: center;

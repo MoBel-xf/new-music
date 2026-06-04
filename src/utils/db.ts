@@ -130,7 +130,7 @@ export async function dbDeletePlaylist(id: string): Promise<void> {
 }
 
 // ── 曲目详情缓存（LRU 500 条）──────────────────────────────────────────────
-const TRACK_CACHE_TTL = 2 * 60 * 60 * 1000 // 音频链接 2 小时过期
+const TRACK_CACHE_TTL = 6 * 60 * 60 * 1000 // 音频链接 6 小时过期
 
 export async function dbGetCachedTrack(uid: string): Promise<Track | null> {
   try {
@@ -241,7 +241,7 @@ export async function dbGetCacheStats(): Promise<CacheStats> {
     db.count('favorites'),
     db.count('playlists')
   ])
-  const searchHistory = JSON.parse(localStorage.getItem('xf-search-history') || '[]').length
+  const searchHistory = JSON.parse(localStorage.getItem('xf-search-history-v2') || '[]').length
   return { history, trackCache, homeRecommend, favorites, playlists, searchHistory }
 }
 
@@ -258,7 +258,13 @@ export async function dbClearHomeRecommend(): Promise<void> {
 export async function dbClearAllCache(): Promise<void> {
   const db = await getDB()
   await Promise.all([db.clear('history'), db.clear('track_cache'), db.clear('home_recommend')])
+  // 清除搜索历史（兼容新旧 key）
   localStorage.removeItem('xf-search-history')
+  localStorage.removeItem('xf-search-history-v2')
+  // 清除播放器会话（音频链接已失效，恢复会话会导致播放失败）
+  localStorage.removeItem('xf-player-session-v1')
+  // 清除播放页热词缓存
+  localStorage.removeItem('xf-play-hot-keyword')
 }
 
 /** 彻底清除所有数据，包括收藏、歌单和全部 IndexedDB */

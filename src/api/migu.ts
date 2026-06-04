@@ -74,7 +74,7 @@ export async function fetchDetails(track: Track): Promise<Track> {
     cover: buildCoverUrl(coverRaw),
     audioUrl: buildCoverUrl(audioUrl), // http → https
     qualityLabel: inferQualityLabel(audioUrl),
-    detailsLoaded: true,
+    detailsLoaded: !!audioUrl,
     lrc: lyricText,
     lyricFetched: Boolean(lyricText) || !lrcUrl
   }

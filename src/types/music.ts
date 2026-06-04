@@ -28,6 +28,8 @@ export interface Track {
   lyricFetched?: boolean
   /** 音频加载失败后标记已重试，防止死循环 */
   _retried?: boolean
+  /** 标记该歌曲确认无音源，不再重试获取 */
+  _noAudio?: boolean
   /** 音频链接获取时间戳，用于判断链接是否过期 */
   urlFetchedAt?: number
 }

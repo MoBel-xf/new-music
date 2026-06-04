@@ -11,7 +11,7 @@ export function useTheme() {
     if (saved && ['dark', 'light', 'dominant'].includes(saved)) {
       theme.value = saved
     } else {
-      theme.value = 'dark'
+      theme.value = 'dominant'
     }
     applyTheme()
   }

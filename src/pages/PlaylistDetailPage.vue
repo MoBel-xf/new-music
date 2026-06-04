@@ -270,7 +270,13 @@ async function playShuffle() {
 }
 
 async function playTrackInList(track: Track) {
-  await player.playTrack(track, [...tracks.value], getContext())
+  const ctx = getContext()
+  // 统一播放逻辑：首次播放设置队列，之后只替换当前歌曲
+  if (!player.queue.length || player.playContext.type !== ctx.type || player.playContext.playlistId !== ctx.playlistId) {
+    await player.playTrack(track, [...tracks.value], ctx)
+  } else {
+    await player.playTrack(track)
+  }
 }
 
 function formatTrackTime(sec?: number) {

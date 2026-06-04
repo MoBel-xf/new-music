@@ -17,8 +17,27 @@ import {
 import { fetchTrackDetails } from '@/api'
 import { usePlayerStore } from '@/stores/player'
 
-/** 音频链接有效期（2 小时） */
-const URL_TTL = 2 * 60 * 60 * 1000
+/** 音频链接有效期（6 小时） */
+const URL_TTL = 6 * 60 * 60 * 1000
+
+/** 剥离临时字段，只保留持久化所需的元数据（标题、歌手、封面、平台等） */
+function stripTrackForStorage(track: Track): Track {
+  return {
+    uid: track.uid,
+    source: track.source,
+    title: track.title,
+    artist: track.artist,
+    album: track.album,
+    cover: track.cover,
+    duration: track.duration,
+    songId: track.songId,
+    pageUrl: track.pageUrl,
+    quality: track.quality,
+    qqSearchKey: track.qqSearchKey,
+    qqId: track.qqId,
+    songMid: track.songMid
+  }
+}
 
 export const usePlaylistStore = defineStore('playlist', () => {
   const favorites = ref<Track[]>([])
@@ -39,11 +58,11 @@ export const usePlaylistStore = defineStore('playlist', () => {
     // 注册历史记录回调到 player store（解耦循环依赖）
     const playerStore = usePlayerStore()
     playerStore.registerHistoryCallback(async (track: Track) => {
-      // 更新内存中的 history 列表
+      // 更新内存中的 history 列表（保留完整数据供当前会话使用）
       history.value = [{ ...track }, ...history.value.filter((t) => t.uid !== track.uid)].slice(0, 50)
       trackCache.value.set(track.uid, track)
-      // 持久化
-      await dbPushHistory(track)
+      // 持久化时只保存元数据，不保存音频链接（链接时效短，需要时重新获取）
+      await dbPushHistory(stripTrackForStorage(track))
     })
 
     // 注册详情同步回调（播放时加载完详情后同步 duration 等字段到收藏/歌单）
@@ -65,7 +84,8 @@ export const usePlaylistStore = defineStore('playlist', () => {
       // 尽量使用带完整信息的版本
       const full = trackCache.value.get(track.uid) ?? track
       favorites.value.unshift(full)
-      await dbPutFavorite({ ...toRaw(full) })
+      // 持久化时只保存元数据，音频链接需要时重新获取
+      await dbPutFavorite(stripTrackForStorage({ ...toRaw(full) }))
     }
   }
 
@@ -127,8 +147,8 @@ export const usePlaylistStore = defineStore('playlist', () => {
     const fi = favorites.value.findIndex((t) => t.uid === track.uid)
     if (fi !== -1) {
       favorites.value[fi] = track
-      // 持久化更新后的收藏数据（含 duration 等完整字段）
-      dbPutFavorite({ ...toRaw(track) }).catch(() => {})
+      // 持久化时只保存元数据（含 duration），音频链接需要时重新获取
+      dbPutFavorite(stripTrackForStorage({ ...toRaw(track) })).catch(() => {})
     }
   }
 

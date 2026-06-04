@@ -108,7 +108,8 @@ export async function fetchDetails(track: Track): Promise<Track> {
     audioUrl,
     qualityLabel: quality,
     duration,
-    detailsLoaded: true,
+    // 只有实际获取到音频链接时才标记为已加载
+    detailsLoaded: !!audioUrl,
     lyricFetched: true
   }
 }

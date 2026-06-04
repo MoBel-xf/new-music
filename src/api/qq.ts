@@ -123,7 +123,7 @@ export async function fetchDetails(track: Track): Promise<Track> {
     qqQualityText: best.text || (d.vip ? `VIP:${d.vip}` : '') || track.qqQualityText,
     quality: best.tag || track.quality,
     qualityLabel,
-    detailsLoaded: true,
+    detailsLoaded: !!audioUrl,
     lyricFetched: true
   }
 }

@@ -13,26 +13,31 @@
           </button>
         </div>
 
-        <div class="cover-center" @click="goToPlay">
-          <div class="disc-wrapper">
-            <div class="cover-disc" :class="{ spinning: isHeroPlaying }">
-              <img v-if="heroCover" :src="heroCover" referrerpolicy="no-referrer" alt="" />
-              <div v-else class="cover-empty"><Icon name="icon-music" size="56" /></div>
-            </div>
-            <!-- 动态波纹动画 -->
-            <div v-if="isHeroPlaying" class="disc-waves">
-              <div class="disc-wave w1" />
-              <div class="disc-wave w2" />
-              <div class="disc-wave w3" />
-              <!-- 音符动画 -->
-              <div class="music-notes">
-                <div class="note n1">♪</div>
-                <div class="note n2">♫</div>
-                <div class="note n3">♩</div>
-                <div class="note n4">♬</div>
-              </div>
-            </div>
-          </div>
+        <!-- 均衡器（覆盖在封面底部） -->
+        <div class="ecg-stage">
+          <EcgWaveform :playing="isHeroPlaying" :color="ecgColor" />
+        </div>
+
+        <!-- 随机脉冲光环（播放时） -->
+        <div v-if="isHeroPlaying" class="pulse-rings">
+          <div
+            v-for="ring in pulseRings"
+            :key="ring.id"
+            class="pulse-ring"
+            :style="{
+              left: ring.x + '%',
+              top: ring.y + '%',
+              width: ring.size + 'px',
+              height: ring.size + 'px',
+              animationDuration: ring.duration + 's',
+              opacity: ring.opacity
+            }"
+          />
+        </div>
+
+        <!-- 浮动粒子（播放时） -->
+        <div v-if="isHeroPlaying" class="floating-particles">
+          <div v-for="i in 8" :key="i" class="particle" :class="`p${i}`" />
         </div>
 
         <div class="cover-bottom">
@@ -50,6 +55,14 @@
 
       <!-- 瀑布流区 -->
       <div class="waterfall-section">
+        <!-- 区域标题 + 播放全部 -->
+        <div v-if="tracks.length" class="wf-header">
+          <span class="wf-header-title">推荐歌曲</span>
+          <button class="wf-play-all" @click="playAll" :disabled="loading">
+            <Icon name="icon-play" size="14" />
+            <span>播放全部</span>
+          </button>
+        </div>
         <!-- 骨架 -->
         <div v-if="loading && !tracks.length" class="wf-grid">
           <div v-for="i in 6" :key="i" class="wf-sk" :class="i % 2 === 1 ? 'tall' : 'short'">
@@ -71,7 +84,6 @@
               <div class="wf-img">
                 <img v-if="track.cover" :src="track.cover" referrerpolicy="no-referrer" loading="lazy" alt="" />
                 <div v-else class="wf-img-empty"><Icon name="icon-music" size="24" /></div>
-                <div class="wf-img-play"><Icon name="icon-play" size="20" /></div>
                 <div v-if="loadingTrackUid === track.uid" class="wf-img-loading"><div class="loading-spinner" /></div>
               </div>
               <div class="wf-meta">
@@ -92,7 +104,6 @@
               <div class="wf-img">
                 <img v-if="track.cover" :src="track.cover" referrerpolicy="no-referrer" loading="lazy" alt="" />
                 <div v-else class="wf-img-empty"><Icon name="icon-music" size="24" /></div>
-                <div class="wf-img-play"><Icon name="icon-play" size="20" /></div>
                 <div v-if="loadingTrackUid === track.uid" class="wf-img-loading"><div class="loading-spinner" /></div>
               </div>
               <div class="wf-meta">
@@ -113,10 +124,15 @@
   </div>
 </template>
 
+<script lang="ts">
+// 模块级标记：首页是否已加载过推荐（跨组件实例持久）
+let _homeRecommendLoaded = false
+</script>
+
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { searchAllSources } from '@/api'
+import { searchAllSources, fetchTrackDetails } from '@/api'
 import { useColorExtract } from '@/composables/useColorExtract'
 import { useAppConfigStore } from '@/stores/appConfig'
 import { usePlayerStore } from '@/stores/player'
@@ -124,6 +140,7 @@ import { usePlaylistStore } from '@/stores/playlist'
 import { useSearchStore } from '@/stores/search'
 import TrackActionSheet from '@/components/TrackActionSheet.vue'
 import Icon from '@/components/Icon.vue'
+import EcgWaveform from '@/components/EcgWaveform.vue'
 import type { Track } from '@/types/music'
 import { showToast } from 'vant'
 import { dbGetHomeRecommend, dbSetHomeRecommend } from '@/utils/db'
@@ -155,6 +172,8 @@ const tracks = ref<Track[]>([])
 const showAction = ref(false)
 const actionTrack = ref<Track | null>(null)
 const loadingTrackUid = ref<string | null>(null)
+/** 上次尝试播放失败的 uid，避免重复点击同一首歌触发"双击"感 */
+let lastFailedUid: string | null = null
 
 const cacheKey = computed(() => `${appConfig.homeQueryKeyword}:${appConfig.homeQueryLimit}`)
 const heroTrack = computed(() => player.currentTrack || tracks.value[0] || null)
@@ -162,6 +181,42 @@ const heroCover = computed(() => heroTrack.value?.cover || '')
 const isPlaying = computed(() => !!player.currentTrack && player.isPlaying)
 const isHeroPlaying = computed(() => heroTrack.value && player.currentTrack?.uid === heroTrack.value.uid && player.isPlaying)
 const isHeroFav = computed(() => heroTrack.value ? plStore.isFavorited(heroTrack.value.uid) : false)
+const ecgColor = computed(() => {
+  const c = player.dominantColor || 'rgba(255,107,107,0.9)'
+  return c.startsWith('rgb(') ? c.replace('rgb(', 'rgba(').replace(')', ', 0.85)') : 'rgba(255,107,107,0.85)'
+})
+
+// ── 脉冲光环 ──────────────────────────────────────────────────────────────
+interface PulseRing { id: number; x: number; y: number; size: number; duration: number; opacity: number }
+const pulseRings = ref<PulseRing[]>([])
+let ringIdCounter = 0
+let ringTimer: ReturnType<typeof setInterval> | null = null
+
+function spawnRing() {
+  const ring: PulseRing = {
+    id: ++ringIdCounter,
+    x: 10 + Math.random() * 80,
+    y: 15 + Math.random() * 55,
+    size: 60 + Math.random() * 160,
+    duration: 2 + Math.random() * 2.5,
+    opacity: 0.15 + Math.random() * 0.25
+  }
+  pulseRings.value.push(ring)
+  setTimeout(() => {
+    pulseRings.value = pulseRings.value.filter(r => r.id !== ring.id)
+  }, ring.duration * 1000)
+}
+
+watch(isHeroPlaying, (playing) => {
+  if (ringTimer) { clearInterval(ringTimer); ringTimer = null }
+  if (playing) {
+    const initial = 2 + Math.floor(Math.random() * 2)
+    for (let i = 0; i < initial; i++) setTimeout(() => spawnRing(), i * 200)
+    ringTimer = setInterval(() => spawnRing(), 800 + Math.random() * 700)
+  } else {
+    pulseRings.value = []
+  }
+})
 
 // 瀑布流两列分配
 const colLeft = computed(() => tracks.value.filter((_, i) => i % 2 === 0))
@@ -195,31 +250,62 @@ function goToPlay() {
 async function toggleHeroPlay() {
   if (!heroTrack.value) return
   if (player.currentTrack?.uid === heroTrack.value.uid) {
+    const wasPlaying = player.isPlaying
     player.togglePlayPause()
+    if (wasPlaying) showToast('已暂停')
   } else {
-    await player.playTrack(heroTrack.value, tracks.value, { type: 'home' })
+    await doPlayTrack(heroTrack.value)
   }
 }
 
 async function toggleFav() { if (heroTrack.value) await plStore.toggleFavorite(heroTrack.value) }
+
+/** 统一播放逻辑：首次播放设置队列，之后只替换当前歌曲 */
+async function doPlayTrack(track: Track) {
+  if (!player.queue.length || player.playContext.type !== 'home') {
+    // 队列为空或不是首页上下文 → 设置新队列
+    await player.playTrack(track, tracks.value, { type: 'home' })
+  } else {
+    // 已有队列 → 只替换当前歌曲，不替换队列
+    await player.playTrack(track)
+  }
+}
+
+/** 播放全部：替换整个队列 */
+async function playAll() {
+  if (!tracks.value.length || loading.value) return
+  await player.playTrack(tracks.value[0], tracks.value, { type: 'home' })
+}
+
 async function playTrack(track: Track) {
-  if (loadingTrackUid.value) return
+  // 如果点击的是当前正在播放的歌曲 → 跳转到详情页
+  if (player.currentTrack?.uid === track.uid && player.isPlaying) {
+    router.push({ name: 'play' })
+    return
+  }
+  // 如果点击的是正在加载的同一首歌且不是失败重试，忽略
+  if (loadingTrackUid.value === track.uid && lastFailedUid !== track.uid) return
+  // 允许切换到新歌：取消之前的 loading 状态
+  lastFailedUid = null
   loadingTrackUid.value = track.uid
   try {
-    await player.playTrack(track, tracks.value, { type: 'home' })
+    await doPlayTrack(track)
     // 检查播放是否实际成功（audioUrl 存在）
     if (player.currentTrack && !player.currentTrack.audioUrl) {
       showToast('该歌曲暂无可用音源，已从列表移除')
+      lastFailedUid = track.uid
       const idx = tracks.value.findIndex(t => t.uid === track.uid)
       if (idx !== -1) tracks.value.splice(idx, 1)
     }
   } catch (err: any) {
     console.warn('[HomePage playTrack]', err)
     showToast('播放失败，已从列表移除')
+    lastFailedUid = track.uid
     const idx = tracks.value.findIndex(t => t.uid === track.uid)
     if (idx !== -1) tracks.value.splice(idx, 1)
   } finally {
-    loadingTrackUid.value = null
+    // 只有当前 loading 的还是这首歌时才清除，避免清除新歌的 loading 状态
+    if (loadingTrackUid.value === track.uid) loadingTrackUid.value = null
   }
 }
 
@@ -229,8 +315,11 @@ async function loadRecommend(force = false) {
   loading.value = true
   try {
     const kws = pickRandom(3); const limit = Math.max(12, appConfig.homeQueryLimit)
-    // 过滤掉 migu（返回空封面）和 qq（同样经常无封面）
-    const sources = searchStore.getEnabledSources().filter(s => s !== 'migu' && s !== 'qq')
+    // 优先使用酷我和 QQ（音频链接更稳定），网易作为补充
+    const allSources = searchStore.getEnabledSources()
+    const primarySources = allSources.filter(s => s === 'kuwo' || s === 'qq')
+    const fallbackSources = allSources.filter(s => s === 'netease')
+    const sources = primarySources.length ? primarySources : fallbackSources
     const results = await Promise.all(kws.map(k => searchAllSources({ keyword: k, limit }, sources).catch(() => [] as Track[])))
     const merged: Track[] = []; const seen = new Set<string>()
     const maxLen = Math.max(0, ...results.map(r => r.length))
@@ -243,13 +332,33 @@ async function loadRecommend(force = false) {
         }
       }
     }
-    // 只有当有新数据时才更新列表，避免空白
-    if (merged.length) {
-      tracks.value = merged
-      void prefetch(merged.slice(0, appConfig.colorPrefetchCount).map(t => t.cover))
-      await dbSetHomeRecommend(merged, cacheKey.value)
+    if (!merged.length) {
+      if (!tracks.value.length) showToast('暂无推荐，请稍后重试')
+      return
+    }
+
+    // 预校验：获取前 6 首的详情，只保留有可用音频链接的
+    const VALIDATE_COUNT = 6
+    const toValidate = merged.slice(0, VALIDATE_COUNT)
+    const rest = merged.slice(VALIDATE_COUNT)
+    const validated = await Promise.all(
+      toValidate.map(async (t) => {
+        try {
+          const fresh = await fetchTrackDetails(t)
+          return fresh.audioUrl ? fresh : null
+        } catch { return null }
+      })
+    )
+    const validTracks = validated.filter((t): t is Track => !!t)
+    // 合并已校验 + 未校验（后台会在播放时校验）
+    const finalTracks = [...validTracks, ...rest]
+
+    if (finalTracks.length) {
+      tracks.value = finalTracks
+      void prefetch(finalTracks.slice(0, appConfig.colorPrefetchCount).map(t => t.cover))
+      await dbSetHomeRecommend(finalTracks, cacheKey.value)
     } else if (!tracks.value.length) {
-      showToast('暂无推荐，请稍后重试')
+      showToast('暂无可用推荐，请稍后重试')
     }
   } catch {
     if (!tracks.value.length) showToast('加载失败，请稍后重试')
@@ -258,14 +367,22 @@ async function loadRecommend(force = false) {
 }
 
 onMounted(async () => {
-  // 尝试从缓存加载（不限制TTL，只有点击刷新才更新）
-  const cached = await dbGetHomeRecommend(cacheKey.value)
-  if (cached?.length) {
-    tracks.value = cached
-    void prefetch(cached.slice(0, appConfig.colorPrefetchCount).map(t => t.cover))
-  } else {
-    // 只有首次且无缓存时才自动加载
+  if (!_homeRecommendLoaded) {
+    // 首次进入：加载缓存 + 获取新推荐
+    _homeRecommendLoaded = true
+    const cached = await dbGetHomeRecommend(cacheKey.value)
+    if (cached?.length) {
+      tracks.value = cached
+      void prefetch(cached.slice(0, appConfig.colorPrefetchCount).map(t => t.cover))
+    }
     await loadRecommend(true)
+  } else if (!tracks.value.length) {
+    // 非首次但数据被清空：从缓存恢复
+    const cached = await dbGetHomeRecommend(cacheKey.value)
+    if (cached?.length) {
+      tracks.value = cached
+      void prefetch(cached.slice(0, appConfig.colorPrefetchCount).map(t => t.cover))
+    }
   }
   // 时间更新
   _timeTimer = setInterval(() => { timeStr.value = formatTimeHM() }, 30000)
@@ -315,7 +432,13 @@ watch(cacheKey, () => { tracks.value = []; loadRecommend(true) })
   padding: calc(env(safe-area-inset-top, 0px) + 10px) 20px 0;
 }
 
-.cover-greeting { font-size: 13px; color: rgba(255,255,255,0.5); }
+.cover-greeting {
+  font-size: 13px;
+  color: rgba(255,255,255,0.92);
+  text-shadow: 0 1px 10px rgba(0,0,0,0.6);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
 
 .cover-btn {
   width: 36px; height: 36px; border-radius: 50%;
@@ -325,35 +448,73 @@ watch(cacheKey, () => { tracks.value = []; loadRecommend(true) })
 }
 .cover-btn:active { transform: scale(0.92); }
 
-.cover-center {
-  position: absolute; top: 45%; left: 50%; transform: translate(-50%, -55%);
-  z-index: 1; cursor: pointer;
+/* ── 均衡器层 ──────────────────────────────────────────────────────────── */
+.ecg-stage {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 35%;
+  z-index: 1;
+  pointer-events: none;
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 30%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 30%);
 }
 
-.cover-disc {
-  width: clamp(160px, 44vw, 240px);
-  height: clamp(160px, 44vw, 240px);
-  border-radius: 24px; overflow: hidden;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 80px rgba(0,0,0,0.2);
-  transition: border-radius 0.6s ease, box-shadow 0.6s ease;
+/* ── 随机脉冲光环 ──────────────────────────────────────────────────────── */
+.pulse-rings {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
 }
-.cover-disc.spinning {
+.pulse-ring {
+  position: absolute;
   border-radius: 50%;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 6px rgba(255,255,255,0.06);
+  border: 2px solid var(--dominant-color, rgba(255,107,107,0.3));
+  transform: translate(-50%, -50%) scale(0.3);
+  animation: pulse-expand ease-out forwards;
+  pointer-events: none;
 }
-.cover-disc img { width: 100%; height: 100%; object-fit: cover; }
-.cover-disc.spinning img { animation: spin 20s linear infinite; }
+@keyframes pulse-expand {
+  0% { transform: translate(-50%, -50%) scale(0.3); opacity: inherit; }
+  100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+}
 
-.cover-empty {
-  width: 100%; height: 100%;
-  background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
-  display: flex; align-items: center; justify-content: center;
-  color: rgba(255,255,255,0.15);
+/* ── 浮动粒子 ──────────────────────────────────────────────────────────── */
+.floating-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--dominant-color, rgba(255,107,107,0.6));
+  opacity: 0;
+  animation: float-up linear infinite;
+}
+.p1 { left: 10%; animation-duration: 4.2s; animation-delay: 0s; width: 3px; height: 3px; }
+.p2 { left: 22%; animation-duration: 3.8s; animation-delay: 0.5s; }
+.p3 { left: 35%; animation-duration: 5.0s; animation-delay: 1.2s; width: 5px; height: 5px; }
+.p4 { left: 48%; animation-duration: 3.5s; animation-delay: 0.3s; }
+.p5 { left: 60%; animation-duration: 4.6s; animation-delay: 1.8s; width: 3px; height: 3px; }
+.p6 { left: 72%; animation-duration: 3.2s; animation-delay: 0.8s; }
+.p7 { left: 82%; animation-duration: 4.8s; animation-delay: 2.1s; width: 5px; height: 5px; }
+.p8 { left: 92%; animation-duration: 3.9s; animation-delay: 1.5s; }
+@keyframes float-up {
+  0% { bottom: -5%; opacity: 0; }
+  15% { opacity: 0.7; }
+  85% { opacity: 0.4; }
+  100% { bottom: 105%; opacity: 0; }
 }
 
 .cover-bottom {
   position: absolute; bottom: 0; left: 0; right: 0; z-index: 2;
-  padding: 0 24px 20px;
+  padding: 0 24px 24px;
   display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
 }
 
@@ -388,6 +549,26 @@ watch(cacheKey, () => { tracks.value = []; loadRecommend(true) })
   z-index: 1;
   overflow: hidden;
 }
+
+/* ── 瀑布流区域标题 ─────────────────────────────────────────────────── */
+.wf-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.wf-header-title {
+  font-size: 16px; font-weight: 700; color: var(--text-primary);
+}
+.wf-play-all {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 16px; border-radius: 999px;
+  font-size: 13px; font-weight: 600;
+  color: var(--text-primary);
+  border: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--dominant-color) 12%, var(--surface-2));
+  cursor: pointer; transition: transform 0.15s ease, background 0.15s ease;
+}
+.wf-play-all:active { transform: scale(0.95); }
+.wf-play-all:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ── 两列瀑布流 ──────────────────────────────────────────────────────── */
 .wf-grid {
@@ -425,12 +606,6 @@ watch(cacheKey, () => { tracks.value = []; loadRecommend(true) })
   display: flex; align-items: center; justify-content: center;
   color: rgba(255,255,255,0.12);
 }
-.wf-img-play {
-  position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(0,0,0,0.3); opacity: 0; transition: opacity 0.2s; color: #fff;
-}
-.wf-card:active .wf-img-play { opacity: 1; }
 
 .wf-meta { padding: 8px 10px 10px; }
 .wf-name {
@@ -466,101 +641,6 @@ watch(cacheKey, () => { tracks.value = []; loadRecommend(true) })
 .wf-empty { text-align: center; padding: 32px 0; font-size: 12px; color: var(--text-tertiary); }
 
 .bottom-pad { height: calc(var(--playerbar-height) + var(--tabbar-height) + var(--safe-bottom) + 16px); }
-
-/* ── 唱片波纹动画 ────────────────────────────────────────────────────── */
-.disc-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.disc-waves {
-  position: absolute;
-  inset: -20px;
-  pointer-events: none;
-  z-index: -1;
-}
-
-.disc-wave {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 2px solid var(--dominant-color, rgba(255,107,107,0.4));
-  opacity: 0;
-  animation: disc-ripple 2.4s ease-out infinite;
-}
-.disc-wave.w1 { animation-delay: 0s; }
-.disc-wave.w2 { animation-delay: 0.8s; }
-.disc-wave.w3 { animation-delay: 1.6s; }
-
-@keyframes disc-ripple {
-  0% { transform: scale(0.9); opacity: 0.6; }
-  100% { transform: scale(1.5); opacity: 0; }
-}
-
-/* ── 音符动画 ────────────────────────────────────────────────────── */
-.music-notes {
-  position: absolute;
-  inset: -40px;
-  pointer-events: none;
-}
-
-.note {
-  position: absolute;
-  font-size: 20px;
-  color: var(--dominant-color, rgba(255,107,107,0.8));
-  opacity: 0;
-  animation: note-float 3s ease-in-out infinite;
-  text-shadow: 0 2px 8px rgba(0,0,0,0.3);
-}
-
-.note.n1 {
-  top: 10%;
-  left: 5%;
-  animation-delay: 0s;
-  animation-duration: 2.8s;
-}
-
-.note.n2 {
-  top: 20%;
-  right: 5%;
-  animation-delay: 0.7s;
-  animation-duration: 3.2s;
-}
-
-.note.n3 {
-  bottom: 20%;
-  left: 10%;
-  animation-delay: 1.4s;
-  animation-duration: 2.6s;
-}
-
-.note.n4 {
-  bottom: 10%;
-  right: 10%;
-  animation-delay: 2.1s;
-  animation-duration: 3s;
-}
-
-@keyframes note-float {
-  0% {
-    transform: translateY(0) rotate(0deg) scale(0.8);
-    opacity: 0;
-  }
-  20% {
-    opacity: 0.8;
-    transform: translateY(-10px) rotate(10deg) scale(1);
-  }
-  80% {
-    opacity: 0.6;
-    transform: translateY(-30px) rotate(-10deg) scale(1.1);
-  }
-  100% {
-    transform: translateY(-50px) rotate(0deg) scale(0.9);
-    opacity: 0;
-  }
-}
 
 /* ── 瀑布流 loading 遮罩 ─────────────────────────────────────────────── */
 .wf-img-loading {

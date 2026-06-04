@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Track, LyricLine, PlayMode, PlayContext } from '@/types/music'
 import { parseLrc, findCurrentLyricIndex } from '@/utils/lyric'
-import { fetchTrackDetails } from '@/api'
+import { fetchTrackDetails, searchAllSources, AVAILABLE_SOURCES } from '@/api'
 import { dbSetCachedTrack, dbGetCachedTrack, dbDeleteCachedTrack } from '@/utils/db'
 import { computeDominantVars } from '@/utils/color'
 import { showToast } from 'vant'
@@ -73,6 +73,15 @@ export const usePlayerStore = defineStore('player', () => {
   let sessionSaveTimer: ReturnType<typeof setTimeout> | null = null
   let currentColorTaskId = 0
   let _playSwitchGeneration = 0
+  let _playNextDepth = 0
+  const MAX_PLAY_NEXT_DEPTH = 10
+  /** 本轮 playNext 调用链中已尝试过的 uid，跳过不重试 */
+  let _playNextTriedUids = new Set<string>()
+  /** playNext 连续失败计数，防止异步场景下的死循环 */
+  let _playNextFailCount = 0
+  const MAX_PLAY_NEXT_FAIL = 20
+  /** 上次成功播放的时间戳，用于冷却判断 */
+  let _lastPlaySuccessAt = 0
 
   // ── 颜色提取 ─────────────────────────────────────────────────────────────
   const { extract, peek, prefetch } = useColorExtract()
@@ -80,14 +89,14 @@ export const usePlayerStore = defineStore('player', () => {
   async function syncTrackColor(coverUrl?: string) {
     const taskId = ++currentColorTaskId
     if (!coverUrl) {
-      // 没有封面时保留上一首的颜色，红色仅做最终兜底
+      // 没有封面时保留上一首的颜色
       const fallback = dominantColor.value || FALLBACK_COLOR
-      dominantColor.value = fallback
       applyDominantColor(fallback)
       scheduleSessionSave()
       return
     }
 
+    // 优先从缓存获取（瞬间应用，无闪烁）
     const cachedColor = peek(coverUrl)
     if (cachedColor) {
       dominantColor.value = cachedColor
@@ -96,10 +105,14 @@ export const usePlayerStore = defineStore('player', () => {
       return
     }
 
+    // 缓存未命中 → 提取主色
+    const prevColor = dominantColor.value
     const color = await extract(coverUrl)
+    // 提取失败（返回默认色）时保留上一首的有效色，避免闪烁
+    const finalColor = (color === FALLBACK_COLOR && prevColor && prevColor !== FALLBACK_COLOR) ? prevColor : color
     if (taskId !== currentColorTaskId || currentTrack.value?.cover !== coverUrl) return
-    dominantColor.value = color
-    applyDominantColor(color)
+    dominantColor.value = finalColor
+    applyDominantColor(finalColor)
     scheduleSessionSave()
   }
 
@@ -271,28 +284,42 @@ export const usePlayerStore = defineStore('player', () => {
         playNext('next')
       })
       _audio.addEventListener('error', () => {
+        // 没有 src 时的 error 是正常的，忽略
+        if (!_audio?.src) return
+        const err = _audio.error
+        console.warn('[audio error]', err?.code, err?.message, 'src:', _audio.src?.slice(0, 80))
         isPlaying.value = false
         syncMediaSessionState()
-        // 音频加载失败：清除缓存、从队列移除、自动播放下一首
+        // 音频加载失败：清除缓存、从队列移除、播放下一首
         const failedTrack = currentTrack.value
-        if (failedTrack && !failedTrack._retried) {
+        showToast('播放失败，已跳过')
+        if (failedTrack) {
           dbDeleteCachedTrack(failedTrack.uid).catch(() => {})
-          const retry: Track = { ...failedTrack, audioUrl: '', detailsLoaded: false, _retried: true }
-          showToast('音频链接失效，正在重新获取…')
-          playTrack(retry)
-        } else {
-          showToast('播放失败，已移除')
-          if (failedTrack) {
-            const removeIdx = queue.value.findIndex(x => x.uid === failedTrack.uid)
-            if (removeIdx !== -1) queue.value.splice(removeIdx, 1)
-          }
-          if (queue.value.length) {
-            playNext('next')
-          } else {
-            currentTrack.value = null
-            currentTime.value = 0; duration.value = 0; progress.value = 0
+          const removeIdx = queue.value.findIndex(x => x.uid === failedTrack.uid)
+          if (removeIdx !== -1) {
+            queue.value.splice(removeIdx, 1)
+            // 直接定位到被删除位置的下一首，避免回退到队首
+            if (queue.value.length) {
+              const nextIdx = removeIdx % queue.value.length
+              const next = queue.value[nextIdx]
+              if (next?.audioUrl) {
+                currentTrack.value = next
+                const a = getAudio()
+                a.src = next.audioUrl
+                a.currentTime = 0
+                a.play().catch(() => {})
+                return
+              }
+              // 没有 audioUrl，让 playNext 处理详情获取
+              currentTrack.value = null
+              playNext('next')
+              return
+            }
           }
         }
+        // 队列为空
+        currentTrack.value = null
+        currentTime.value = 0; duration.value = 0; progress.value = 0
       })
       _audio.addEventListener('loadedmetadata', () => {
         duration.value = _audio!.duration || 0
@@ -431,8 +458,8 @@ export const usePlayerStore = defineStore('player', () => {
   const currentIndex = computed(() => queue.value.findIndex((t) => t.uid === currentTrack.value?.uid))
 
   // ── Actions ───────────────────────────────────────────────────────────────
-  /** 音频链接有效期（2 小时） */
-  const URL_TTL = 2 * 60 * 60 * 1000
+  /** 音频链接有效期（6 小时） */
+  const URL_TTL = 6 * 60 * 60 * 1000
 
   function isAudioUrlExpired(track: Track): boolean {
     if (!track.audioUrl) return false
@@ -536,6 +563,8 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   function shouldFetchDetails(track: Track) {
+    // 已标记为无音源的歌曲不重试（避免无限循环）
+    if (track._noAudio) return false
     if (!track.detailsLoaded) return true
     if (!track.audioUrl) return true
     if (isAudioUrlExpired(track)) return true
@@ -543,12 +572,51 @@ export const usePlayerStore = defineStore('player', () => {
     return false
   }
 
+  /** 跨平台 fallback：主平台无音频时，搜索其他平台获取同名歌曲的播放链接 */
+  async function crossPlatformFallback(track: Track): Promise<Track> {
+    // 选择其他平台（排除当前平台）
+    const otherSources = AVAILABLE_SOURCES.filter(s => s !== track.source)
+    if (!otherSources.length) return { ...track, _noAudio: true }
+
+    try {
+      const keyword = `${track.title} ${track.artist}`.trim()
+      const results = await searchAllSources({ keyword, limit: 3 }, otherSources)
+      // 找到同名同歌手的歌曲
+      const match = results.find(r =>
+        r.title === track.title && r.artist === track.artist
+      ) || results.find(r =>
+        r.title.includes(track.title) || track.title.includes(r.title)
+      )
+
+      if (match) {
+        const detailed = await fetchTrackDetails(match)
+        if (detailed.audioUrl) {
+          // 用匹配到的音频链接更新当前 track
+          const updated = {
+            ...track,
+            audioUrl: detailed.audioUrl,
+            urlFetchedAt: Date.now(),
+            detailsLoaded: true,
+            _noAudio: false
+          }
+          await dbSetCachedTrack(updated)
+          return updated
+        }
+      }
+    } catch (e) {
+      console.warn('[crossPlatformFallback]', e)
+    }
+
+    return { ...track, _noAudio: true }
+  }
+
   async function playTrack(track: Track, newQueue?: Track[], context?: PlayContext) {
     // 生成切换代数，防止过期异步操作覆盖新状态
     const switchGen = ++_playSwitchGeneration
 
-    // 立即停止当前音频，重置进度，防止旧歌曲 timeupdate 事件干扰
-    if (_audio) { _audio.pause(); _audio.removeAttribute('src'); _audio.load() }
+    // 立即停止当前音频，重置进度
+    // 只 pause 不动 src，等后面设置新 src 时自然替换
+    if (_audio) _audio.pause()
     currentTime.value = 0; duration.value = 0; progress.value = 0; isPlaying.value = false
 
     // 先设置队列和上下文（让 UI 立即响应）
@@ -591,10 +659,17 @@ export const usePlayerStore = defineStore('player', () => {
         isLoadingDetails.value = true
         try {
           t = await fetchTrackDetails(t)
-          await dbSetCachedTrack(t)
+          if (t.audioUrl) {
+            await dbSetCachedTrack(t)
+          } else {
+            // 主平台无音频，尝试跨平台 fallback
+            t = await crossPlatformFallback(t)
+          }
         } catch (e) {
           console.warn('[fetchDetails]', e)
-          showToast('加载失败，请重试')
+          dbDeleteCachedTrack(t.uid).catch(() => {})
+          t = { ...t, audioUrl: '', detailsLoaded: false, _noAudio: true }
+          showToast('歌曲链接获取失败，已跳过')
         } finally {
           isLoadingDetails.value = false
         }
@@ -625,10 +700,12 @@ export const usePlayerStore = defineStore('player', () => {
     if (switchGen !== _playSwitchGeneration) return
 
     if (!t.audioUrl) {
+      console.warn('[playTrack] no audioUrl for:', t.title, t.source, t.uid)
       showToast('暂无可用音源，已跳过')
       const removeIdx = queue.value.findIndex(x => x.uid === t.uid)
       if (removeIdx !== -1) queue.value.splice(removeIdx, 1)
       if (queue.value.length) {
+        // 不清除 currentTrack，让 playNext 基于当前位置找下一首
         setTimeout(() => playNext('next'), 300)
       } else {
         currentTrack.value = null
@@ -640,23 +717,47 @@ export const usePlayerStore = defineStore('player', () => {
     const a = getAudio()
     a.src = t.audioUrl
     a.currentTime = 0
-    // 再次确保进度重置，防止timeupdate事件干扰
+    // 显式触发加载（部分浏览器不会自动加载通过 JS 设置的 src）
+    a.load()
     currentTime.value = 0; duration.value = 0; progress.value = 0
     try {
       await a.play()
+      // 播放成功：重置失败计数和已尝试列表
+      _playNextFailCount = 0
+      _playNextTriedUids.clear()
     } catch (err: any) {
-      if (err?.name === 'AbortError') return
+      if (err?.name === 'AbortError') {
+        console.warn('[play] AbortError (normal during track switch)')
+        return
+      }
       if (err?.name === 'NotAllowedError') {
+        console.warn('[play] NotAllowedError (autoplay blocked)')
         pendingAutoPlay.value = true
         return
       }
-      console.warn('[play error]', err)
+      console.warn('[play error]', err?.name, err?.message, 'src:', t.audioUrl?.slice(0, 80))
       showToast('播放失败，已跳过')
-      // 播放失败时从队列移除并自动下一首
+      // 播放失败时从队列移除，直接播放下一首
       const removeIdx = queue.value.findIndex(x => x.uid === t.uid)
-      if (removeIdx !== -1) queue.value.splice(removeIdx, 1)
-      if (queue.value.length) {
-        setTimeout(() => playNext('next'), 300)
+      if (removeIdx !== -1) {
+        queue.value.splice(removeIdx, 1)
+        if (queue.value.length) {
+          const nextIdx = removeIdx % queue.value.length
+          const next = queue.value[nextIdx]
+          if (next?.audioUrl) {
+            currentTrack.value = next
+            const a = getAudio()
+            a.src = next.audioUrl
+            a.currentTime = 0
+            a.play().catch(() => {})
+            return
+          }
+          currentTrack.value = null
+          setTimeout(() => playNext('next'), 300)
+        } else {
+          currentTrack.value = null
+          currentTime.value = 0; duration.value = 0; progress.value = 0
+        }
       } else {
         currentTrack.value = null
         currentTime.value = 0; duration.value = 0; progress.value = 0
@@ -755,8 +856,16 @@ export const usePlayerStore = defineStore('player', () => {
 
   function playNext(dir: 'next' | 'prev') {
     const list = queue.value
-    if (!list.length) return
-    const idx = currentIndex.value
+    if (!list.length) {
+      currentTrack.value = null
+      currentTime.value = 0; duration.value = 0; progress.value = 0
+      isPlaying.value = false
+      return
+    }
+    const rawIdx = currentIndex.value
+    // 当 currentTrack 已从队列移除时 idx=-1，修正起点：
+    // next → 从队首开始(0)，prev → 从队尾开始(len-1)
+    const idx = rawIdx >= 0 ? rawIdx : (dir === 'next' ? -1 : 0)
 
     if (playMode.value === 'single') {
       const a = getAudio()
@@ -765,14 +874,41 @@ export const usePlayerStore = defineStore('player', () => {
       return
     }
 
-    const next =
-      playMode.value === 'shuffle'
-        ? Math.floor(Math.random() * list.length)
-        : dir === 'next'
-          ? (idx + 1) % list.length
-          : (idx - 1 + list.length) % list.length
+    // 防死循环：连续失败计数守卫
+    _playNextFailCount++
+    if (_playNextFailCount > MAX_PLAY_NEXT_FAIL) {
+      _playNextFailCount = 0
+      _playNextTriedUids.clear()
+      showToast('歌曲加载失败过多，请刷新歌单')
+      isPlaying.value = false
+      return
+    }
 
-    playTrack(list[next])
+    // 找到下一首未尝试过的歌
+    let nextIdx = -1
+    const len = list.length
+    for (let i = 0; i < len; i++) {
+      const candidateIdx = dir === 'next'
+        ? (idx + 1 + i) % len
+        : (idx - 1 - i + len) % len
+      const candidate = list[candidateIdx]
+      if (candidate && !_playNextTriedUids.has(candidate.uid)) {
+        nextIdx = candidateIdx
+        break
+      }
+    }
+
+    if (nextIdx === -1) {
+      // 所有歌都试过了
+      _playNextFailCount = 0
+      _playNextTriedUids.clear()
+      showToast('所有歌曲加载失败，请刷新歌单')
+      isPlaying.value = false
+      return
+    }
+
+    _playNextTriedUids.add(list[nextIdx].uid)
+    playTrack(list[nextIdx])
   }
 
   function togglePlayPause() {

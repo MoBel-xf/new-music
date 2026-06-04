@@ -2,11 +2,36 @@
 import { ref } from 'vue'
 import { getColorSync } from 'colorthief'
 
-const DEFAULT_COLOR = '#2C2C2C'
-const CACHE_LIMIT = 80
+const DEFAULT_COLOR = '#FF6B6B'
+const CACHE_LIMIT = 200
+const COLOR_CACHE_KEY = 'xf-color-cache-v1'
 const IMG_PROXY_BASE = import.meta.env.VITE_IMG_PROXY_BASE || ''
-const cache = new Map<string, string>()
 const pendingTasks = new Map<string, Promise<string>>()
+
+// ── 持久化颜色缓存 ─────────────────────────────────────────────────────────
+// 颜色提取开销大（加载图片 + 提色），结果与图片内容绑定不随链接过期，长期缓存
+const cache = new Map<string, string>()
+
+function loadPersistedCache() {
+  try {
+    const raw = localStorage.getItem(COLOR_CACHE_KEY)
+    if (!raw) return
+    const entries = JSON.parse(raw) as [string, string][]
+    for (const [url, color] of entries) {
+      cache.set(url, color)
+    }
+  } catch { /* ignore */ }
+}
+
+function persistCache() {
+  try {
+    const entries = Array.from(cache.entries()).slice(-CACHE_LIMIT)
+    localStorage.setItem(COLOR_CACHE_KEY, JSON.stringify(entries))
+  } catch { /* ignore */ }
+}
+
+// 启动时加载持久化缓存
+loadPersistedCache()
 
 const FALLBACK_IMAGE_PROXIES = [
   (url: string) => `https://wsrv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//i, ''))}`,
@@ -22,7 +47,7 @@ export function useColorExtract() {
     const cachedColor = peek(imageUrl)
     if (cachedColor) {
       dominantColor.value = cachedColor
-      return dominantColor.value
+      return cachedColor
     }
 
     if (pendingTasks.has(imageUrl)) {
@@ -36,7 +61,10 @@ export function useColorExtract() {
     pendingTasks.set(imageUrl, task)
     try {
       const color = await task
-      remember(imageUrl, color)
+      // 只缓存非默认色（成功提取的），失败的下次重试
+      if (color !== DEFAULT_COLOR) {
+        remember(imageUrl, color)
+      }
       dominantColor.value = color
       return color
     } catch {
@@ -54,8 +82,8 @@ export function useColorExtract() {
       urls.map(async (url) => {
         if (peek(url) || pendingTasks.has(url)) return
         try {
-          const color = await extract(url)
-          remember(url, color)
+          // extract 内部已缓存结果，无需额外 remember
+          await extract(url)
         } catch {
           // 预热失败不影响主流程
         }
@@ -72,11 +100,14 @@ function remember(imageUrl: string, color: string) {
     const oldest = cache.keys().next().value
     if (oldest) cache.delete(oldest)
   }
+  // 异步持久化，不阻塞主流程
+  requestIdleCallback?.(() => persistCache()) ?? setTimeout(persistCache, 100)
 }
 
 function peek(imageUrl: string) {
   if (!cache.has(imageUrl)) return null
   const cachedColor = cache.get(imageUrl)!
+  // LRU touch
   cache.delete(imageUrl)
   cache.set(imageUrl, cachedColor)
   return cachedColor

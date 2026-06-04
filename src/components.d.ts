@@ -7,6 +7,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    EcgWaveform: typeof import('./components/EcgWaveform.vue')['default']
     EmptyState: typeof import('./components/ui/EmptyState.vue')['default']
     GlassButton: typeof import('./components/ui/GlassButton.vue')['default']
     GlassCard: typeof import('./components/ui/GlassCard.vue')['default']
@@ -25,17 +26,13 @@ declare module 'vue' {
     TrackActionSheet: typeof import('./components/TrackActionSheet.vue')['default']
     TrackItem: typeof import('./components/TrackItem.vue')['default']
     VanActionSheet: typeof import('vant/es')['ActionSheet']
-    VanBackTop: typeof import('vant/es')['BackTop']
-    VanCell: typeof import('vant/es')['Cell']
     VanCheckbox: typeof import('vant/es')['Checkbox']
     VanDialog: typeof import('vant/es')['Dialog']
     VanField: typeof import('vant/es')['Field']
-    VanFloatingPanel: typeof import('vant/es')['FloatingPanel']
     VanIcon: typeof import('vant/es')['Icon']
     VanList: typeof import('vant/es')['List']
     VanLoading: typeof import('vant/es')['Loading']
     VanPopup: typeof import('vant/es')['Popup']
-    VanPullRefresh: typeof import('vant/es')['PullRefresh']
     VanSearch: typeof import('vant/es')['Search']
     VanSwipeCell: typeof import('vant/es')['SwipeCell']
     VanSwitch: typeof import('vant/es')['Switch']

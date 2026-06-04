@@ -1,18 +1,18 @@
 ﻿<template>
-  <div class="page-container">
+  <div class="cache-page">
     <!-- Header -->
-    <div class="flex items-center gap-8px px-16px pt-16px pb-12px flex-shrink-0">
-      <button class="icon-btn w-32px h-32px" type="button" @click="goBack">
+    <div class="cache-header">
+      <button class="cache-back-btn" type="button" @click="goBack">
         <van-icon name="arrow-left" />
       </button>
-      <h1 class="section-title text-18px">缓存管理</h1>
+      <h1 class="cache-title">缓存管理</h1>
     </div>
 
     <!-- Scrollable content -->
-    <div class="page-scroll px-16px" style="padding-bottom: calc(var(--tabbar-height) + var(--safe-bottom) + 24px)">
+    <div class="cache-scroll" style="padding-bottom: calc(var(--tabbar-height) + var(--safe-bottom) + 24px)">
       <!-- Cache cards section -->
-      <section class="mb-20px">
-        <div class="text-secondary text-14px font-600 mb-10px">缓存数据</div>
+      <section class="cache-section">
+        <div class="cache-section-label">缓存数据</div>
 
         <GlassCard
           v-for="(item, idx) in cacheItems"
@@ -20,27 +20,27 @@
           tint="soft"
           :glow="!!stats[item.key]"
           rounded="md"
-          class="mb-8px animate-fade-in-up"
+          class="cache-card animate-fade-in-up"
           :style="{ animationDelay: `${idx * 60}ms`, 'animation-fill-mode': 'both' }"
         >
-          <div class="flex items-center justify-between">
+          <div class="cache-item-row">
             <!-- Left: icon + text -->
-            <div class="flex items-center gap-12px text-secondary">
+            <div class="cache-item-left">
               <Icon :name="item.icon" size="20" />
-              <div class="flex flex-col gap-2px">
-                <span class="text-15px font-500 text-primary">{{ item.label }}</span>
-                <span class="text-12px text-tertiary">{{ item.desc }}</span>
-                <span class="text-11px text-tertiary opacity-70 mt-1px">
-                  <van-icon name="clock-o" size="10" class="mr-2px" />{{ ttlMap[item.key] }}
+              <div class="cache-item-info">
+                <span class="cache-item-label">{{ item.label }}</span>
+                <span class="cache-item-desc">{{ item.desc }}</span>
+                <span class="cache-item-ttl">
+                  <van-icon name="clock-o" size="10" class="cache-ttl-icon" />{{ ttlMap[item.key] }}
                 </span>
               </div>
             </div>
 
             <!-- Right: count + clear button -->
-            <div class="flex items-center gap-10px">
-              <span class="text-13px text-secondary tabular-nums">{{ stats[item.key] ?? 0 }} 条</span>
+            <div class="cache-item-right">
+              <span class="cache-item-count">{{ stats[item.key] ?? 0 }} 条</span>
               <button
-                class="pill-btn text-12px py-6px px-14px disabled:opacity-40 disabled:cursor-not-allowed"
+                class="cache-clear-btn"
                 type="button"
                 :disabled="!stats[item.key]"
                 @click="clearSingle(item)"
@@ -51,10 +51,10 @@
       </section>
 
       <!-- Action buttons section -->
-      <section class="mb-20px animate-fade-in-up" style="animation-delay: 280ms; animation-fill-mode: both">
-        <GlassCard tint="none" rounded="md" class="mb-10px p-0!">
+      <section class="cache-section animate-fade-in-up" style="animation-delay: 280ms; animation-fill-mode: both">
+        <GlassCard tint="none" rounded="md" class="cache-card-flush">
           <button
-            class="clear-warning-btn flex items-center justify-center gap-8px w-full py-14px text-15px font-600 bg-transparent border-none cursor-pointer active:bg-[var(--surface-2)] transition-colors"
+            class="cache-clear-all-btn"
             type="button"
             @click="clearAll"
           >
@@ -64,7 +64,7 @@
         </GlassCard>
 
         <button
-          class="danger-btn flex items-center justify-center gap-8px w-full py-14px text-15px font-600 border-none rounded-16px cursor-pointer transition-colors"
+          class="cache-nuke-btn"
           type="button"
           @click="nukeAll"
         >
@@ -74,7 +74,7 @@
       </section>
 
       <!-- Footer -->
-      <div class="text-center text-12px text-[var(--text-quaternary)] py-12px">
+      <div class="cache-footer">
         「清除全部缓存」不影响收藏和歌单，「彻底清除」会删除所有数据
       </div>
     </div>
@@ -111,8 +111,8 @@ interface CacheItem {
 }
 
 const ttlMap: Record<string, string> = {
-  history: '2小时过期',
-  trackCache: '2小时过期',
+  history: '6小时过期',
+  trackCache: '6小时过期',
   homeRecommend: '30分钟过期',
   searchHistory: '7天过期'
 }
@@ -149,6 +149,7 @@ const cacheItems: CacheItem[] = [
     icon: 'icon-search',
     clear: async () => {
       localStorage.removeItem('xf-search-history')
+      localStorage.removeItem('xf-search-history-v2')
     }
   }
 ]
@@ -215,22 +216,234 @@ onMounted(refreshStats)
 </script>
 
 <style scoped>
-.page-container {
-  background: var(--bg-base);
-  min-height: 100%;
+/* ── 页面容器 ──────────────────────────────────────────────────────────── */
+.cache-page {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: var(--bg-base);
+  transition: background-color 0.6s ease, color 0.6s ease;
 }
-.tabular-nums {
+
+/* 沉浸式渐变背景（与播放页一致） */
+.cache-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--dominant-color) 12%, transparent) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, color-mix(in srgb, var(--dominant-color) 8%, transparent) 0%, transparent 40%),
+    linear-gradient(180deg, var(--bg-base) 0%, color-mix(in srgb, var(--dominant-color) 4%, var(--bg-base)) 100%);
+  transition: background 0.6s ease;
+}
+
+/* ── 顶部导航 ──────────────────────────────────────────────────────────── */
+.cache-header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 12px;
+  flex-shrink: 0;
+}
+
+.cache-back-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  border: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+  font-size: 16px;
+}
+.cache-back-btn:active {
+  transform: scale(0.92);
+  background: var(--surface-3);
+}
+
+.cache-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  transition: color 0.6s ease;
+}
+
+/* ── 滚动区域 ──────────────────────────────────────────────────────────── */
+.cache-scroll {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 16px;
+}
+
+/* ── 区块 ──────────────────────────────────────────────────────────────── */
+.cache-section {
+  margin-bottom: 20px;
+}
+
+.cache-section-label {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.cache-card {
+  margin-bottom: 8px;
+}
+
+.cache-card-flush {
+  margin-bottom: 10px;
+  padding: 0 !important;
+}
+
+/* ── 缓存项行 ──────────────────────────────────────────────────────────── */
+.cache-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cache-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-secondary);
+}
+
+.cache-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cache-item-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.cache-item-desc {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.cache-item-ttl {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  opacity: 0.7;
+  margin-top: 1px;
+}
+
+.cache-ttl-icon {
+  margin-right: 2px;
+}
+
+.cache-item-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cache-item-count {
+  font-size: 13px;
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
-/* 清除按钮警告色 - 在深浅色模式下都保持红色 */
-.clear-warning-btn {
-  color: #ff3b30 !important;
+
+/* ── 按钮 ──────────────────────────────────────────────────────────────── */
+.cache-clear-btn {
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--text-primary);
+  border: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--surface-3) 85%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  cursor: pointer;
+  padding: 6px 14px;
+  transition: transform 0.15s ease, background 0.15s ease;
 }
-.danger-btn {
+.cache-clear-btn:active {
+  transform: scale(0.95);
+  background: var(--surface-2);
+}
+.cache-clear-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cache-clear-all-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #ff3b30;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.cache-clear-all-btn:active {
+  background: var(--surface-2);
+}
+
+.cache-nuke-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 0;
+  font-size: 15px;
+  font-weight: 600;
   background: #ff3b30;
   color: #fff;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
 }
-.danger-btn:active {
+.cache-nuke-btn:active {
   background: #d63029;
+  transform: scale(0.98);
+}
+
+/* ── 底部说明 ──────────────────────────────────────────────────────────── */
+.cache-footer {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-quaternary);
+  padding: 12px 0;
+}
+
+/* ── 入场动画 ──────────────────────────────────────────────────────────── */
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease both;
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

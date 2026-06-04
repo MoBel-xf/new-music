@@ -87,7 +87,7 @@ export async function fetchDetails(track: Track): Promise<Track> {
     audioUrl,
     lrc: d.lyric || track.lrc,
     qualityLabel: inferQualityLabel(audioUrl),
-    detailsLoaded: true,
+    detailsLoaded: !!audioUrl,
     lyricFetched: true
   }
 }
