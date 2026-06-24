@@ -2,12 +2,13 @@
   <div
     class="play-page"
     :style="pageToneStyle"
-    @touchstart.passive="onSwipeTouchStart"
-    @touchmove.passive="onSwipeTouchMove"
-    @touchend.passive="onSwipeTouchEnd"
+    @touchstart="onTouchStart"
+    @touchmove="onTouchMove"
+    @touchend="onTouchEnd"
   >
     <div class="swipe-content" :style="swipeContentStyle">
-      <div class="top-bar" @touchstart.stop @touchmove.stop @touchend.stop>
+      <!-- 默认顶部栏 -->
+      <div v-show="!lyricsExpanded" class="top-bar" @touchstart.stop @touchmove.stop @touchend.stop>
         <button class="top-action-btn" @click="showModePicker = true">
           <Icon name="icon-todo-list-o" size="22" />
         </button>
@@ -17,15 +18,27 @@
         </button>
       </div>
 
+      <!-- 全屏歌词顶部栏 -->
+      <div v-show="lyricsExpanded" class="lyrics-header" @touchstart.stop @touchmove.stop @touchend.stop>
+        <button class="top-action-btn" @click="lyricsExpanded = false">
+          <Icon name="icon-back" size="22" />
+        </button>
+        <div class="lyrics-header-info">
+          <h1 class="lyrics-header-title">{{ track?.title ?? '—' }}</h1>
+          <p class="lyrics-header-artist">{{ track?.artist ?? '未知歌手' }}</p>
+        </div>
+        <div style="width: 40px" />
+      </div>
+
       <main class="play-body">
         <section class="cover-view">
-          <div class="cover-stage">
+          <div v-show="!lyricsExpanded" class="cover-stage">
             <div class="cover-wrap" :class="{ spinning: player.isPlaying, 'has-cover': !!track?.cover }">
               <div v-if="!track?.cover" class="cover-fallback"><Icon name="icon-music" size="72" /></div>
             </div>
           </div>
           <div class="immersive-panel">
-            <div class="track-info-row">
+            <div v-show="!lyricsExpanded" class="track-info-row">
               <div class="track-info">
                 <h1 class="track-title">{{ track?.title ?? '—' }}</h1>
                 <p class="track-artist">{{ track?.artist ?? '未知歌手' }}</p>
@@ -44,7 +57,7 @@
               </div>
             </div>
 
-            <div class="lyric-container" ref="lyricZoneRef">
+            <div class="lyric-container" ref="lyricZoneRef" :class="{ expanded: lyricsExpanded }" @click="onLyricAreaClick" @touchstart.passive="onLyricTouchStart" @touchend.passive="onLyricTouchEnd">
               <div class="lyric-scroll-inner">
                 <button
                   v-for="(line, index) in player.lyricLines"
@@ -52,12 +65,15 @@
                   :ref="(el) => setLyricLineRef(el, index)"
                   class="lyric-line"
                   :class="{ active: index === player.currentLyricIndex }"
-                  @click="onLyricClick(line.time, index)"
+                  :data-lyric-index="index"
                 >
                   {{ line.text || '…' }}
                 </button>
                 <div class="lyric-spacer" :style="lyricSpacerStyle" aria-hidden="true" />
-                <div v-if="!player.lyricLines.length" class="lyric-empty">暂无歌词</div>
+                <div v-if="!player.lyricLines.length" class="lyric-empty">
+                  <Icon name="icon-music" size="28" />
+                  <span>暂无歌词</span>
+                </div>
               </div>
             </div>
           </div>
@@ -178,7 +194,7 @@ import { usePlaylistStore } from '@/stores/playlist'
 import { formatTime } from '@/utils/format'
 import { parseColor, mixColor } from '@/utils/color'
 import { showToast } from 'vant'
-import type { LyricLine, PlayMode, Track } from '@/types/music'
+import type { PlayMode, Track } from '@/types/music'
 import Icon from '@/components/Icon.vue'
 import SourceBadge from '@/components/SourceBadge.vue'
 
@@ -200,6 +216,9 @@ const lyricZoneRef = ref<HTMLElement>()
 const lyricLineRefs = ref<Array<HTMLElement | null>>([])
 const lyricSpacerHeight = ref(140)
 const viewportHeight = ref(typeof window !== 'undefined' ? (window.visualViewport?.height ?? window.innerHeight) : 0)
+const lyricsExpanded = ref(false)
+const userScrolling = ref(false)
+let userScrollTimer = 0
 let lyricZoneObserver: ResizeObserver | null = null
 
 function readCachedHotKeyword() {
@@ -231,7 +250,20 @@ function shouldLockSwipe(target: EventTarget | null) {
   return Boolean(target.closest('button, a, input, textarea, select, [role="button"], .progress-track, .queue-panel, .playlist-picker, .mode-panel'))
 }
 
-function onSwipeTouchStart(e: TouchEvent) {
+/**
+ * 全屏歌词时：
+ * - 歌词容器内触摸 → 不拦截，允许原生上下滚动
+ * - 歌词容器外触摸 → preventDefault 阻断浏览器原生手势
+ */
+function isInsideLyrics(e: TouchEvent): boolean {
+  return !!(e.target as HTMLElement).closest('.lyric-container')
+}
+
+function onTouchStart(e: TouchEvent) {
+  if (lyricsExpanded.value) {
+    if (!isInsideLyrics(e)) e.preventDefault()
+    return
+  }
   if (swipeAnimating.value) return
   swipeLocked = shouldLockSwipe(e.target)
   if (swipeLocked) return
@@ -240,14 +272,19 @@ function onSwipeTouchStart(e: TouchEvent) {
   swipeTransiting.value = false
 }
 
-function onSwipeTouchMove(e: TouchEvent) {
+function onTouchMove(e: TouchEvent) {
+  if (lyricsExpanded.value) {
+    if (!isInsideLyrics(e)) e.preventDefault()
+    return
+  }
   if (swipeLocked || dragging || swipeAnimating.value) return
   const dy = e.touches[0].clientY - swipeTouchStartY
   if (Math.abs(dy) < 8) return
   swipeOffset.value = dy * 0.35
 }
 
-function onSwipeTouchEnd(e: TouchEvent) {
+function onTouchEnd(e: TouchEvent) {
+  if (lyricsExpanded.value) return
   if (swipeLocked || dragging || swipeAnimating.value) {
     swipeLocked = false
     return
@@ -378,6 +415,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('resize', updateViewportMetrics)
   disconnectLyricObserver()
+  if (userScrollTimer) { clearTimeout(userScrollTimer); userScrollTimer = 0 }
 })
 
 function onKeydown(event: KeyboardEvent) {
@@ -445,6 +483,20 @@ function setLyricLineRef(element: Element | { $el?: Element } | null, index: num
   lyricLineRefs.value[index] = (element && '$el' in element ? (element.$el as HTMLElement | null) : (element as HTMLElement | null)) ?? null
 }
 
+function onLyricTouchStart() {
+  userScrolling.value = true
+  if (userScrollTimer) { clearTimeout(userScrollTimer); userScrollTimer = 0 }
+}
+
+function onLyricTouchEnd() {
+  if (userScrollTimer) clearTimeout(userScrollTimer)
+  // 松手后 3 秒恢复自动滚动
+  userScrollTimer = window.setTimeout(() => {
+    userScrolling.value = false
+    userScrollTimer = 0
+  }, 3000)
+}
+
 function centerLyricLine(index: number, smooth = true) {
   const zone = lyricZoneRef.value
   const line = lyricLineRefs.value[index]
@@ -460,9 +512,44 @@ function centerLyricLine(index: number, smooth = true) {
   })
 }
 
-function onLyricClick(time: LyricLine['time'], index: number) {
-  player.seekToTime(time)
-  centerLyricLine(index)
+/** 检查点击坐标是否命中按钮内的实际文字区域 */
+function isClickOnText(button: HTMLElement, x: number, y: number): boolean {
+  const textNode = Array.from(button.childNodes).find(n => n.nodeType === Node.TEXT_NODE && n.textContent?.trim())
+  if (!textNode) return false
+  const range = document.createRange()
+  range.selectNodeContents(textNode)
+  const rects = range.getClientRects()
+  for (let i = 0; i < rects.length; i++) {
+    const r = rects[i]
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return true
+  }
+  return false
+}
+
+function onLyricAreaClick(e: MouseEvent) {
+  if (!lyricsExpanded.value) {
+    // 未展开 → 点击即进入全屏歌词
+    lyricsExpanded.value = true
+    userScrolling.value = false
+    nextTick(() => {
+      if (player.currentLyricIndex >= 0) centerLyricLine(player.currentLyricIndex, false)
+    })
+    return
+  }
+  // 已展开 → 检查点击是否命中歌词文字
+  const target = e.target as HTMLElement
+  const lineEl = target.closest('[data-lyric-index]') as HTMLElement | null
+  if (lineEl && isClickOnText(lineEl, e.clientX, e.clientY)) {
+    const idx = Number(lineEl.dataset.lyricIndex)
+    const line = player.lyricLines[idx]
+    if (line) {
+      player.seekToTime(line.time)
+      centerLyricLine(idx)
+    }
+  } else {
+    // 点击空白区域或按钮非文字区域 → 退出全屏歌词
+    lyricsExpanded.value = false
+  }
 }
 
 function playFromQueue(nextTrack: Track) {
@@ -505,6 +592,8 @@ watch(
   () => player.currentLyricIndex,
   (index) => {
     if (index < 0) return
+    // 用户手动滑动歌词时暂停自动滚动
+    if (userScrolling.value) return
     nextTick(() => {
       updateViewportMetrics()
       centerLyricLine(index)
@@ -822,11 +911,77 @@ watch(
   margin: 14px auto 0;
   padding: 12px 22px 10px;
   overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
   mask-image: linear-gradient(to bottom, transparent, #000 15%, #000 85%, transparent);
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 15%, #000 85%, transparent);
   scrollbar-width: none;
   scroll-behavior: smooth;
   overscroll-behavior: contain;
+  cursor: pointer;
+}
+
+.lyric-container.expanded {
+  flex: 1;
+  height: auto;
+  max-height: none;
+  margin-top: 0;
+  padding: 20px 28px 32px;
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 5%, #000 90%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 5%, #000 90%, transparent 100%);
+}
+
+/* 全屏歌词头部 */
+.lyrics-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 18px 12px;
+  gap: 14px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.35) 0%, transparent 100%);
+}
+
+.lyrics-header-info {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.lyrics-header-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--page-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lyrics-header-artist {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--page-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lyric-container.expanded .lyric-scroll-inner {
+  padding: 48px 0 80px;
+  gap: 24px;
+}
+
+.lyric-container.expanded .lyric-line {
+  font-size: 1.28rem;
+  line-height: 1.8;
+}
+
+.lyric-container.expanded .lyric-line.active {
+  transform: scale(1.15);
 }
 
 @keyframes heroGlowFloat {
@@ -871,30 +1026,43 @@ watch(
 }
 
 .lyric-line {
+  display: inline;
   border: none;
+  outline: none;
   padding: 0;
+  margin: 0;
   background: transparent;
   color: var(--page-text-secondary);
   font-size: 1.16rem;
   line-height: 1.5;
   font-weight: 500;
   text-align: left;
-  transition: all 0.35s ease;
+  transition: color 0.3s ease, transform 0.3s ease;
+  transform-origin: left center;
   word-break: break-word;
   scroll-margin-block: 50%;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .lyric-line.active {
   color: var(--page-text-primary);
-  font-size: 1.4rem;
   font-weight: 700;
-  transform: scale(1.02);
+  transform: scale(1.18);
 }
 
 .lyric-empty {
   color: var(--page-text-secondary);
   font-size: 1rem;
-  text-align: left;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 32px 0;
+  opacity: 0.6;
 }
 
 .loading-overlay {
@@ -1327,10 +1495,6 @@ watch(
   .lyric-container {
     padding: 10px 16px 8px;
     border-radius: 22px;
-  }
-
-  .lyric-line.active {
-    font-size: 1.28rem;
   }
 
   .mode-panel {

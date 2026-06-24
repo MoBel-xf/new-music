@@ -1,9 +1,13 @@
+<!--
+  EcgWaveform — 线性波纹可视化
+  参考 audioMotion-analyzer 风格：多层正弦波叠加 + 渐变发光 + 填充区域
+-->
 <template>
   <canvas ref="canvasRef" class="eq-canvas" />
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps<{
   playing: boolean
@@ -15,34 +19,31 @@ let ctx: CanvasRenderingContext2D | null = null
 let animId = 0
 let startTime = 0
 
-// ── 柱子配置 ──────────────────────────────────────────────────────────────
-const BAR_COUNT = 14
-// 每根柱子的个性化参数（基础高度、振幅、速度、相位）
-const BAR_PROFILES = Array.from({ length: BAR_COUNT }, (_, i) => ({
-  base: 0.18 + Math.random() * 0.22,           // 基础高度比例
-  amp: 0.35 + Math.random() * 0.3,              // 振幅
-  speed: 1.5 + Math.random() * 2.5,             // 动画速度
-  phase: (i / BAR_COUNT) * Math.PI * 2 + Math.random() * 1.5, // 相位偏移
-  // 额外的慢速波动（让整体有呼吸感）
-  slowSpeed: 0.3 + Math.random() * 0.4,
-  slowPhase: Math.random() * Math.PI * 2,
-  slowAmp: 0.08 + Math.random() * 0.1
-}))
+// ── 波形参数 ─────────────────────────────────────────────────────────────
+// 6 条波线，每条有不同的频率、振幅、速度、透明度
+const WAVE_PROFILES = [
+  { freq: 1.8, amp: 0.32, speed: 1.6, alpha: 1.0, lineWidth: 2.5 },   // 主波
+  { freq: 2.6, amp: 0.22, speed: 2.2, alpha: 0.6, lineWidth: 1.8 },   // 次波
+  { freq: 3.8, amp: 0.14, speed: 1.1, alpha: 0.35, lineWidth: 1.2 },  // 细波
+  { freq: 1.2, amp: 0.18, speed: 0.8, alpha: 0.45, lineWidth: 1.5 },  // 慢波
+  { freq: 5.2, amp: 0.08, speed: 3.0, alpha: 0.2, lineWidth: 0.8 },   // 高频细节
+  { freq: 0.7, amp: 0.25, speed: 0.5, alpha: 0.3, lineWidth: 2.0 },   // 呼吸波
+]
 
-const barHeights = new Float32Array(BAR_COUNT).fill(0)
+// 当前振幅（平滑过渡用）
+let currentAmp = 0
+const targetAmp = { value: 0 }
 
-/** 计算某根柱子在当前时间的目标高度 */
-function getBarTarget(index: number, t: number): number {
-  const p = BAR_PROFILES[index]
-  // 主波动
-  const main = Math.sin(t * p.speed + p.phase) * p.amp
-  // 慢速呼吸波动
-  const slow = Math.sin(t * p.slowSpeed + p.slowPhase) * p.slowAmp
-  // 从右向左的滚动相位偏移（右侧领先，左侧滞后）
-  const scrollPhase = ((BAR_COUNT - 1 - index) / BAR_COUNT) * 1.8
-  const scroll = Math.sin(t * 2.2 + scrollPhase) * 0.12
-
-  return Math.max(0.06, Math.min(1, p.base + main + slow + scroll))
+/** 计算某条波线在 x 位置的 y 值 */
+function waveY(profile: typeof WAVE_PROFILES[0], x: number, t: number, amp: number): number {
+  const { freq, amp: baseAmp, speed } = profile
+  // 主正弦
+  const main = Math.sin(x * freq * Math.PI * 2 + t * speed) * baseAmp
+  // 二次谐波
+  const harmonic = Math.sin(x * freq * 1.5 * Math.PI * 2 + t * speed * 0.7 + 1.2) * baseAmp * 0.3
+  // 慢速漂移
+  const drift = Math.sin(x * 0.8 + t * 0.3) * 0.06
+  return (main + harmonic + drift) * amp
 }
 
 function draw() {
@@ -56,51 +57,81 @@ function draw() {
 
   ctx.clearRect(0, 0, w, h)
 
+  // 目标振幅
+  targetAmp.value = props.playing ? 1 : 0
+  currentAmp += (targetAmp.value - currentAmp) * 0.04
+
   const lineColor = props.color || 'rgba(255, 107, 107, 0.85)'
+  const midY = h * 0.5
+  const maxAmp = h * 0.38
 
-  // 计算并平滑柱子高度
-  for (let i = 0; i < BAR_COUNT; i++) {
-    const target = props.playing ? getBarTarget(i, t) : 0
-    const speed = target > barHeights[i] ? 0.25 : 0.06
-    barHeights[i] += (target - barHeights[i]) * speed
-  }
+  // ── 逐条绘制波线 ────────────────────────────────────────────────────
+  for (let wi = WAVE_PROFILES.length - 1; wi >= 0; wi--) {
+    const profile = WAVE_PROFILES[wi]
+    const amp = currentAmp * profile.amp
 
-  const gap = 5 * dpr
-  const totalGap = gap * (BAR_COUNT - 1)
-  const barWidth = (w - totalGap) / BAR_COUNT
-  const maxBarHeight = h * 0.9
-  const cornerRadius = Math.min(barWidth / 2, 4 * dpr)
-
-  for (let i = 0; i < BAR_COUNT; i++) {
-    const x = i * (barWidth + gap)
-    const barH = Math.max(3 * dpr, barHeights[i] * maxBarHeight)
-    const y = h - barH
-
-    ctx.fillStyle = lineColor
-    ctx.globalAlpha = 0.5 + barHeights[i] * 0.5
-
-    // 圆角矩形
     ctx.beginPath()
-    ctx.moveTo(x + cornerRadius, y)
-    ctx.lineTo(x + barWidth - cornerRadius, y)
-    ctx.arcTo(x + barWidth, y, x + barWidth, y + cornerRadius, cornerRadius)
-    ctx.lineTo(x + barWidth, h)
-    ctx.lineTo(x, h)
-    ctx.lineTo(x, y + cornerRadius)
-    ctx.arcTo(x, y, x + cornerRadius, y, cornerRadius)
-    ctx.fill()
+    ctx.lineWidth = profile.lineWidth * dpr
+    ctx.globalAlpha = profile.alpha * Math.min(1, currentAmp * 1.5 + 0.15)
+
+    // 用渐变描边
+    const grad = ctx.createLinearGradient(0, 0, w, 0)
+    grad.addColorStop(0, 'transparent')
+    grad.addColorStop(0.12, lineColor)
+    grad.addColorStop(0.5, lineColor)
+    grad.addColorStop(0.88, lineColor)
+    grad.addColorStop(1, 'transparent')
+    ctx.strokeStyle = grad
+
+    // 计算波形点
+    const step = 2 * dpr
+    const points: [number, number][] = []
+    for (let x = 0; x <= w; x += step) {
+      const nx = x / w // 0~1 归一化
+      const y = midY + waveY(profile, nx, t, amp) * maxAmp
+      points.push([x, y])
+    }
+
+    // 绘制平滑曲线（贝塞尔插值）
+    if (points.length > 1) {
+      ctx.moveTo(points[0][0], points[0][1])
+      for (let i = 1; i < points.length - 1; i++) {
+        const cpX = (points[i][0] + points[i + 1][0]) / 2
+        const cpY = (points[i][1] + points[i + 1][1]) / 2
+        ctx.quadraticCurveTo(points[i][0], points[i][1], cpX, cpY)
+      }
+      const last = points[points.length - 1]
+      ctx.lineTo(last[0], last[1])
+    }
+
+    ctx.stroke()
+
+    // ── 填充区域（仅主波和次波）──────────────────────────────────────
+    if (wi <= 1 && amp > 0.01) {
+      ctx.globalAlpha = profile.alpha * 0.08 * Math.min(1, currentAmp * 1.5)
+      ctx.lineTo(w, midY)
+      ctx.lineTo(0, midY)
+      ctx.closePath()
+
+      const fillGrad = ctx.createLinearGradient(0, midY - maxAmp * amp, 0, midY + maxAmp * amp)
+      fillGrad.addColorStop(0, lineColor)
+      fillGrad.addColorStop(0.5, 'transparent')
+      fillGrad.addColorStop(1, lineColor)
+      ctx.fillStyle = fillGrad
+      ctx.fill()
+    }
   }
 
   ctx.globalAlpha = 1
 
-  // 左右淡出遮罩
-  const grad = ctx.createLinearGradient(0, 0, w, 0)
-  grad.addColorStop(0, 'rgba(0,0,0,0)')
-  grad.addColorStop(0.06, 'rgba(0,0,0,1)')
-  grad.addColorStop(0.94, 'rgba(0,0,0,1)')
-  grad.addColorStop(1, 'rgba(0,0,0,0)')
+  // ── 左右淡出遮罩 ───────────────────────────────────────────────────
+  const fadeGrad = ctx.createLinearGradient(0, 0, w, 0)
+  fadeGrad.addColorStop(0, 'rgba(0,0,0,0)')
+  fadeGrad.addColorStop(0.06, 'rgba(0,0,0,1)')
+  fadeGrad.addColorStop(0.94, 'rgba(0,0,0,1)')
+  fadeGrad.addColorStop(1, 'rgba(0,0,0,0)')
   ctx.globalCompositeOperation = 'destination-in'
-  ctx.fillStyle = grad
+  ctx.fillStyle = fadeGrad
   ctx.fillRect(0, 0, w, h)
   ctx.globalCompositeOperation = 'source-over'
 
@@ -114,16 +145,7 @@ function resize() {
   const rect = canvas.getBoundingClientRect()
   canvas.width = rect.width * dpr
   canvas.height = rect.height * dpr
-  draw()
 }
-
-watch(() => props.playing, () => {
-  // playing 状态变化时 draw 循环自动处理
-})
-
-watch(() => props.color, () => {
-  // 颜色变化时下一帧自动生效
-})
 
 onMounted(() => {
   const canvas = canvasRef.value

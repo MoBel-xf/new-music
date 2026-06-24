@@ -4,8 +4,6 @@
     <div class="page-scroll-inner">
       <!-- 封面区（随页面滚动） -->
       <div class="cover-stage" :style="coverBgStyle">
-        <div class="cover-overlay" />
-
         <div class="cover-top">
           <span class="cover-greeting">{{ greeting }} · {{ timeStr }}</span>
           <button class="cover-btn" @click="goSearch()">
@@ -16,23 +14,6 @@
         <!-- 均衡器（覆盖在封面底部） -->
         <div class="ecg-stage">
           <EcgWaveform :playing="isHeroPlaying" :color="ecgColor" />
-        </div>
-
-        <!-- 随机脉冲光环（播放时） -->
-        <div v-if="isHeroPlaying" class="pulse-rings">
-          <div
-            v-for="ring in pulseRings"
-            :key="ring.id"
-            class="pulse-ring"
-            :style="{
-              left: ring.x + '%',
-              top: ring.y + '%',
-              width: ring.size + 'px',
-              height: ring.size + 'px',
-              animationDuration: ring.duration + 's',
-              opacity: ring.opacity
-            }"
-          />
         </div>
 
         <!-- 浮动粒子（播放时） -->
@@ -184,38 +165,6 @@ const isHeroFav = computed(() => heroTrack.value ? plStore.isFavorited(heroTrack
 const ecgColor = computed(() => {
   const c = player.dominantColor || 'rgba(255,107,107,0.9)'
   return c.startsWith('rgb(') ? c.replace('rgb(', 'rgba(').replace(')', ', 0.85)') : 'rgba(255,107,107,0.85)'
-})
-
-// ── 脉冲光环 ──────────────────────────────────────────────────────────────
-interface PulseRing { id: number; x: number; y: number; size: number; duration: number; opacity: number }
-const pulseRings = ref<PulseRing[]>([])
-let ringIdCounter = 0
-let ringTimer: ReturnType<typeof setInterval> | null = null
-
-function spawnRing() {
-  const ring: PulseRing = {
-    id: ++ringIdCounter,
-    x: 10 + Math.random() * 80,
-    y: 15 + Math.random() * 55,
-    size: 60 + Math.random() * 160,
-    duration: 2 + Math.random() * 2.5,
-    opacity: 0.15 + Math.random() * 0.25
-  }
-  pulseRings.value.push(ring)
-  setTimeout(() => {
-    pulseRings.value = pulseRings.value.filter(r => r.id !== ring.id)
-  }, ring.duration * 1000)
-}
-
-watch(isHeroPlaying, (playing) => {
-  if (ringTimer) { clearInterval(ringTimer); ringTimer = null }
-  if (playing) {
-    const initial = 2 + Math.floor(Math.random() * 2)
-    for (let i = 0; i < initial; i++) setTimeout(() => spawnRing(), i * 200)
-    ringTimer = setInterval(() => spawnRing(), 800 + Math.random() * 700)
-  } else {
-    pulseRings.value = []
-  }
 })
 
 // 瀑布流两列分配
@@ -420,12 +369,6 @@ watch(cacheKey, () => { tracks.value = []; loadRecommend(true) })
   transition: background 0.8s ease;
 }
 
-.cover-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.5) 100%);
-}
-
 .cover-top {
   position: absolute; top: 0; left: 0; right: 0; z-index: 2;
   display: flex; align-items: center; justify-content: space-between;
@@ -457,27 +400,6 @@ watch(cacheKey, () => { tracks.value = []; loadRecommend(true) })
   pointer-events: none;
   mask-image: linear-gradient(to bottom, transparent 0%, #000 30%);
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 30%);
-}
-
-/* ── 随机脉冲光环 ──────────────────────────────────────────────────────── */
-.pulse-rings {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  overflow: hidden;
-}
-.pulse-ring {
-  position: absolute;
-  border-radius: 50%;
-  border: 2px solid var(--dominant-color, rgba(255,107,107,0.3));
-  transform: translate(-50%, -50%) scale(0.3);
-  animation: pulse-expand ease-out forwards;
-  pointer-events: none;
-}
-@keyframes pulse-expand {
-  0% { transform: translate(-50%, -50%) scale(0.3); opacity: inherit; }
-  100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
 }
 
 /* ── 浮动粒子 ──────────────────────────────────────────────────────────── */
