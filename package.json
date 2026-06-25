@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
-  "homepage": "https://xf184.cn",
   "scripts": {
     "dev": "vite --force",
     "build": "vue-tsc && vite build",
