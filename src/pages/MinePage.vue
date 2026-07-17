@@ -1,27 +1,63 @@
 ﻿<template>
   <div class="mine-page">
     <div class="page-scroll-inner">
-      <!-- 上方：背景图（随页面滚动） -->
-      <div class="hero-bg" :style="heroBgStyle">
+      <!-- 上方：随页面上下流动的音乐封面墙 -->
+      <div
+        class="hero-bg"
+        :class="{ expanded: isCoverWallExpanded }"
+        :style="heroToneStyle"
+        @touchstart.passive="onCoverWallTouchStart"
+        @touchmove.passive="onCoverWallTouchMove"
+        @touchend.passive="onCoverWallTouchEnd"
+      >
+        <div class="cover-marquee">
+          <div
+            v-for="(column, columnIndex) in coverTileColumns"
+            :key="columnIndex"
+            class="cover-column"
+            :class="columnIndex % 2 ? 'cover-column-down' : 'cover-column-up'"
+          >
+            <button
+              v-for="(tile, tileIndex) in [...column, ...column]"
+              :key="`${tile.title}-${tileIndex}`"
+              class="cover-tile"
+              :class="{ 'is-current': tile.track?.uid === player.currentTrack?.uid }"
+              :disabled="!isCoverWallExpanded || !tile.track"
+              :aria-label="tile.track ? `播放 ${tile.title}` : tile.title"
+              @click.stop="playFromCover(tile)"
+            >
+              <img v-if="tile.cover" :src="tile.cover" alt="" referrerpolicy="no-referrer" />
+              <span v-else class="cover-tile-fallback" :style="{ '--tile-accent': tile.tone }">{{ tile.title.slice(0, 1) }}</span>
+              <span v-if="player.isPlaying && tile.track?.uid === player.currentTrack?.uid" class="cover-playing-indicator" aria-label="正在播放">
+                <i v-for="bar in 3" :key="bar" class="playing-bar" />
+              </span>
+            </button>
+          </div>
+        </div>
         <div class="hero-overlay" />
         <div class="hero-content">
           <div class="hero-top">
-            <span class="hero-label">我的</span>
-            <button class="hero-btn" @click="router.push({ name: 'cache' })">
+            <button v-if="isCoverWallExpanded" class="hero-back" aria-label="收起封面列表" @click.stop="collapseCoverWall">
+              <Icon name="icon-back" size="20" />
+            </button>
+            <span v-else class="hero-label">我的</span>
+            <button v-if="!isCoverWallExpanded" class="hero-btn" @click="router.push({ name: 'cache' })">
               <Icon name="icon-setting" size="20" />
             </button>
           </div>
 
-          <div class="hero-center">
-            <div class="user-avatar"><span>♪</span></div>
-            <h1 class="user-name">我的音乐</h1>
-            <p class="user-stats">{{ plStore.favorites.length }} 收藏 · {{ plStore.playlists.length }} 歌单 · {{ plStore.history.length }} 历史</p>
-          </div>
+          <div class="hero-bottom-strip">
+            <div class="hero-center">
+              <div class="user-avatar"><span>♪</span></div>
+              <h1 class="user-name">我的音乐</h1>
+              <p class="user-stats">{{ plStore.favorites.length }} 收藏 · {{ plStore.playlists.length }} 歌单 · {{ plStore.history.length }} 历史</p>
+            </div>
 
-          <div class="hero-actions">
-            <button class="ha-btn" @click="openFavorites"><Icon name="icon-like" size="16" /> 收藏</button>
-            <button class="ha-btn" @click="openHistory"><Icon name="icon-clock" size="16" /> 历史</button>
-            <button class="ha-btn" @click="cycleMode"><Icon :name="modeIcon" size="16" /> {{ modeLabel }}</button>
+            <div class="hero-actions">
+              <button class="ha-btn" aria-label="我的收藏" @click="openFavorites"><Icon name="icon-like" size="16" /> 收藏</button>
+              <button class="ha-btn" aria-label="播放历史" @click="openHistory"><Icon name="icon-clock" size="16" /> 历史</button>
+              <button class="ha-btn" :aria-label="modeLabel" @click="cycleMode"><Icon :name="modeIcon" size="16" /> {{ modeLabel }}</button>
+            </div>
           </div>
         </div>
       </div>
@@ -144,7 +180,7 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'MinePage' })
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppConfigStore } from '@/stores/appConfig'
 import { usePlayerStore } from '@/stores/player'
@@ -152,9 +188,8 @@ import { usePlaylistStore } from '@/stores/playlist'
 import { useTheme } from '@/composables/useTheme'
 import type { ThemeMode } from '@/composables/useTheme'
 import { showConfirmDialog, showToast } from 'vant'
-import type { Playlist, PlayMode } from '@/types/music'
+import type { Playlist, PlayMode, Track } from '@/types/music'
 import Icon from '@/components/Icon.vue'
-import { getLuminance } from '@/utils/color'
 
 const router = useRouter()
 const appConfig = useAppConfigStore()
@@ -169,12 +204,91 @@ const themeOptions: { value: ThemeMode; label: string }[] = [
 const showCreate = ref(false); const newName = ref(''); const showConfig = ref(false)
 const draft = ref({ homeQueryKeyword: '', homeQueryLimit: '12', playQueryKeyword: '', playQueryLimit: '12', prefetchCount: '4', colorPrefetchCount: '6', keepTabbarDominantColor: false })
 
-const heroBgStyle = computed(() => {
-  const color = player.dominantColor || '#ff6b6b'
-  const cover = player.currentTrack?.cover || ''
-  const dark = getLuminance(color) > 0.5 ? '#0c0c18' : '#080810'
-  return { background: cover ? `linear-gradient(180deg, rgba(0,0,0,0.3), rgba(0,0,0,0.6)), url(${cover}) center/cover no-repeat` : `linear-gradient(180deg, ${color}, ${dark})` }
+interface CoverTile {
+  title: string
+  cover?: string
+  tone: string
+  track?: Track
+}
+
+const fallbackCoverTiles: CoverTile[] = [
+  { title: '午夜电台', tone: '#b14362' }, { title: '城市漫游', tone: '#245b86' }, { title: '海风', tone: '#17746a' },
+  { title: '橘子汽水', tone: '#c15d2d' }, { title: '慢慢来', tone: '#735b9f' }, { title: '失重', tone: '#4d526d' }
+]
+
+const isCoverWallExpanded = ref(false)
+const coverWallPullDistance = ref(0)
+let coverWallTouchStartY = 0
+
+// 封面墙采用首次出现时的固定顺序。播放会更新歌曲数据和播放状态，但不重新排版封面位置。
+const coverTracks = ref<Track[]>([])
+
+watch(
+  () => [player.currentTrack, ...plStore.history, ...plStore.favorites],
+  (tracks) => {
+    const incoming = new Map<string, Track>()
+    tracks.forEach((track) => {
+      if (track && !incoming.has(track.uid)) incoming.set(track.uid, track)
+    })
+
+    const existingUids = new Set(coverTracks.value.map((track) => track.uid))
+    const updated = coverTracks.value.map((track) => incoming.get(track.uid) ?? track)
+    const appended = Array.from(incoming.values()).filter((track) => !existingUids.has(track.uid))
+    coverTracks.value = [...updated, ...appended]
+  },
+  { immediate: true }
+)
+
+const coverTileColumns = computed(() => {
+  const tiles: CoverTile[] = coverTracks.value.map((track, index) => ({
+    title: track.title || '音乐',
+    cover: track.cover,
+    tone: fallbackCoverTiles[index % fallbackCoverTiles.length].tone,
+    track
+  }))
+  const source = tiles.length ? [...tiles, ...fallbackCoverTiles] : fallbackCoverTiles
+  return Array.from({ length: 3 }, (_, columnIndex) => Array.from(
+    { length: 6 },
+    (_, itemIndex) => source[(columnIndex + itemIndex * 3) % source.length]
+  ))
 })
+
+const heroToneStyle = computed(() => {
+  const color = player.dominantColor || '#ff6b6b'
+  return { '--hero-tint': color, '--cover-pull-distance': `${coverWallPullDistance.value}px` }
+})
+
+function onCoverWallTouchStart(event: TouchEvent) {
+  coverWallTouchStartY = event.touches[0]?.clientY ?? 0
+}
+
+function onCoverWallTouchMove(event: TouchEvent) {
+  if (isCoverWallExpanded.value) return
+  const distance = (event.touches[0]?.clientY ?? coverWallTouchStartY) - coverWallTouchStartY
+  coverWallPullDistance.value = Math.min(108, Math.max(0, distance * 0.42))
+}
+
+function onCoverWallTouchEnd(event: TouchEvent) {
+  const endY = event.changedTouches[0]?.clientY ?? coverWallTouchStartY
+  const distance = endY - coverWallTouchStartY
+  coverWallPullDistance.value = 0
+  if (!isCoverWallExpanded.value && distance > 48) isCoverWallExpanded.value = true
+  if (isCoverWallExpanded.value && distance < -48) collapseCoverWall()
+}
+
+function collapseCoverWall() {
+  isCoverWallExpanded.value = false
+  coverWallPullDistance.value = 0
+}
+
+async function playFromCover(tile: CoverTile) {
+  if (!isCoverWallExpanded.value || !tile.track) return
+  if (tile.track.uid === player.currentTrack?.uid) {
+    player.togglePlayPause()
+    return
+  }
+  await player.playTrack(tile.track, coverTracks.value, { type: 'history' })
+}
 
 const modeMap: Record<PlayMode, string> = { list: '列表循环', single: '单曲循环', shuffle: '随机播放' }
 const modeLabel = computed(() => modeMap[player.playMode])
@@ -222,55 +336,225 @@ function saveConfig() {
   -webkit-overflow-scrolling: touch;
 }
 
-/* ── 背景图（随页面滚动）─────────────────────────────────────────────── */
+/* ── 封面流背景（随页面滚动）─────────────────────────────────────────── */
 .hero-bg {
-  height: 50vh;
-  min-height: 280px;
+  height: 52vh;
+  min-height: 310px;
   position: relative;
   overflow: hidden;
-  transition: background 0.6s ease;
+  isolation: isolate;
+  touch-action: pan-y;
+  transition: height 0.5s cubic-bezier(0.2, 0.7, 0.2, 1), min-height 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+  background: radial-gradient(circle at 18% 18%, color-mix(in srgb, var(--hero-tint) 42%, #1d1623), #090a0e 65%);
 }
 
-.hero-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.08), rgba(0,0,0,0.45)); }
-.hero-content { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; padding: 0 24px; }
+.hero-bg.expanded {
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
+.cover-marquee {
+  position: absolute;
+  z-index: 1;
+  inset: -30% -2% -24%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  opacity: 0.94;
+  filter: saturate(0.98) contrast(1.02);
+}
+
+.cover-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  will-change: transform;
+  animation: cover-flow-up 70s linear infinite;
+}
+
+.cover-column:nth-child(2) { animation-duration: 82s; animation-delay: -24s; }
+.cover-column:nth-child(3) { animation-duration: 76s; animation-delay: -46s; }
+.cover-column-down { animation-name: cover-flow-down; }
+
+.cover-tile {
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 15px;
+  padding: 0;
+  border: 0;
+  background: #26242a;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.36);
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cover-tile:disabled { cursor: default; }
+.hero-bg.expanded .cover-tile:not(:disabled) { cursor: pointer; }
+.hero-bg.expanded .cover-tile:not(:disabled):active { transform: scale(0.94); }
+.cover-tile.is-current { box-shadow: 0 0 0 2px rgba(255,255,255,0.94), 0 12px 30px rgba(0,0,0,0.46); }
+
+.cover-playing-indicator {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: rgba(0,0,0,0.26);
+}
+
+.playing-bar {
+  width: 5px;
+  height: 18px;
+  border-radius: 99px;
+  background: #fff;
+  transform-origin: center;
+  animation: playing-pulse 0.78s ease-in-out infinite alternate;
+}
+
+.playing-bar:nth-child(2) { height: 28px; animation-delay: -0.28s; }
+.playing-bar:nth-child(3) { height: 13px; animation-delay: -0.5s; }
+
+@keyframes playing-pulse {
+  from { transform: scaleY(0.45); opacity: 0.68; }
+  to { transform: scaleY(1); opacity: 1; }
+}
+
+.cover-tile img, .cover-tile-fallback {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover-tile-fallback {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--tile-accent) 72%, #ffffff), var(--tile-accent) 55%, #121217);
+  color: rgba(255,255,255,0.92);
+  font-size: clamp(18px, 7vw, 34px);
+  font-family: Georgia, 'Songti SC', serif;
+  text-shadow: 0 3px 16px rgba(0,0,0,0.42);
+}
+
+.hero-overlay {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(5,5,8,0.1) 0%, rgba(5,5,8,0.03) 36%, rgba(5,5,8,0.6) 100%),
+    linear-gradient(90deg, rgba(7,7,10,0.2), transparent 52%, rgba(7,7,10,0.16));
+  transition: background 0.5s ease;
+}
+
+.hero-bg.expanded .hero-overlay {
+  background:
+    linear-gradient(180deg, rgba(5,5,8,0.12) 0%, rgba(5,5,8,0) 45%, rgba(5,5,8,0.56) 100%),
+    linear-gradient(90deg, rgba(7,7,10,0.12), transparent 54%, rgba(7,7,10,0.1));
+}
+
+.hero-content {
+  position: relative;
+  z-index: 3;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0 24px;
+  transform: translateY(var(--cover-pull-distance, 0));
+  transition: transform 0.26s ease;
+  justify-content: flex-end;
+  padding-bottom: calc(var(--safe-bottom) + 18px);
+  background: linear-gradient(180deg, transparent 54%, rgba(7,7,10,0.72) 100%);
+  pointer-events: none;
+}
 
 .hero-top {
+  position: absolute;
+  top: 0;
+  left: 24px;
+  right: 24px;
   display: flex; align-items: center; justify-content: space-between;
   padding-top: calc(env(safe-area-inset-top, 0px) + 10px);
+  pointer-events: auto;
 }
 .hero-label { font-size: 13px; color: var(--text-secondary); }
-.hero-btn {
+.hero-btn, .hero-back {
   width: 36px; height: 36px; border-radius: 50%;
   border: 1px solid var(--border-light); background: var(--surface-2);
   color: #fff; display: flex; align-items: center; justify-content: center;
   cursor: pointer; backdrop-filter: blur(8px);
 }
+.hero-back { flex: 0 0 auto; background: rgba(0,0,0,0.32); }
+
+.hero-bottom-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  pointer-events: auto;
+}
 
 .hero-center {
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 10px;
 }
 .user-avatar {
-  width: 60px; height: 60px; border-radius: 18px;
+  grid-row: 1 / 3;
+  width: 42px; height: 42px; border-radius: 14px;
   background: var(--surface-3); border: 1px solid var(--border-light);
   display: flex; align-items: center; justify-content: center;
   backdrop-filter: blur(8px);
 }
-.user-avatar span { font-size: 28px; font-weight: 800; color: var(--dominant-color, #ff6b6b); }
-.user-name { margin: 0; font-size: 24px; font-weight: 800; color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,0.3); }
-.user-stats { margin: 0; font-size: 13px; color: var(--text-secondary); }
+.user-avatar span { font-size: 20px; font-weight: 800; color: var(--dominant-color, #ff6b6b); }
+.user-name { margin: 0; font-size: 17px; font-weight: 800; color: #fff; white-space: nowrap; text-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+.user-stats { margin: 2px 0 0; font-size: 11px; color: rgba(255,255,255,0.68); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .hero-actions {
-  display: flex; align-items: center; justify-content: center;
-  gap: 10px; padding-bottom: 20px;
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 6px;
 }
 .ha-btn {
   display: flex; align-items: center; justify-content: center; gap: 5px;
-  padding: 8px 16px; border-radius: 100px;
+  width: 34px; height: 34px; padding: 0; border-radius: 50%;
   border: 1px solid var(--border-light); background: var(--surface-2);
-  color: var(--text-primary); font-size: 13px; font-weight: 500;
+  color: var(--text-primary); font-size: 0; font-weight: 500;
   cursor: pointer; backdrop-filter: blur(8px); transition: transform 0.15s ease;
 }
 .ha-btn:active { transform: scale(0.95); }
+
+.hero-bg.expanded .hero-content {
+  justify-content: flex-end;
+  padding-bottom: calc(var(--safe-bottom) + 24px);
+  transform: none;
+  background: linear-gradient(180deg, transparent 42%, rgba(7,7,10,0.78) 100%);
+}
+
+.hero-bg.expanded .hero-top {
+  position: absolute;
+  top: 0;
+  left: 24px;
+  right: 24px;
+}
+
+.hero-bg.expanded .hero-center {
+  flex: 1;
+}
+
+.hero-bg.expanded .user-name { font-size: 18px; }
+.hero-bg.expanded .hero-actions { justify-content: flex-end; }
+
+@keyframes cover-flow-up { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+@keyframes cover-flow-down { from { transform: translateY(-50%); } to { transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .cover-column { animation: none; }
+}
 
 /* ── 内容区 ──────────────────────────────────────────────────────────── */
 .content-area {

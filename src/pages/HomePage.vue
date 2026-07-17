@@ -95,7 +95,7 @@
           </div>
         </div>
 
-        <div v-if="!loading && !tracks.length" class="wf-empty">下拉刷新试试</div>
+        <div v-if="!loading && !tracks.length" class="wf-empty">点击上方刷新按钮获取推荐</div>
       </div>
 
       <div class="bottom-pad" />
@@ -105,13 +105,8 @@
   </div>
 </template>
 
-<script lang="ts">
-// 模块级标记：首页是否已加载过推荐（跨组件实例持久）
-let _homeRecommendLoaded = false
-</script>
-
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { searchAllSources, fetchTrackDetails } from '@/api'
 import { useColorExtract } from '@/composables/useColorExtract'
@@ -316,22 +311,11 @@ async function loadRecommend(force = false) {
 }
 
 onMounted(async () => {
-  if (!_homeRecommendLoaded) {
-    // 首次进入：加载缓存 + 获取新推荐
-    _homeRecommendLoaded = true
-    const cached = await dbGetHomeRecommend(cacheKey.value)
-    if (cached?.length) {
-      tracks.value = cached
-      void prefetch(cached.slice(0, appConfig.colorPrefetchCount).map(t => t.cover))
-    }
-    await loadRecommend(true)
-  } else if (!tracks.value.length) {
-    // 非首次但数据被清空：从缓存恢复
-    const cached = await dbGetHomeRecommend(cacheKey.value)
-    if (cached?.length) {
-      tracks.value = cached
-      void prefetch(cached.slice(0, appConfig.colorPrefetchCount).map(t => t.cover))
-    }
+  // 进入首页只恢复本地缓存，不发起网络请求；新推荐由用户点击刷新按钮触发。
+  const cached = await dbGetHomeRecommend(cacheKey.value)
+  if (cached?.length) {
+    tracks.value = cached
+    void prefetch(cached.slice(0, appConfig.colorPrefetchCount).map(t => t.cover))
   }
   // 时间更新
   _timeTimer = setInterval(() => { timeStr.value = formatTimeHM() }, 30000)
@@ -341,8 +325,6 @@ onUnmounted(() => {
   if (_timeTimer) { clearInterval(_timeTimer); _timeTimer = null }
 })
 
-// cacheKey 变化时重新加载（仅当配置改变）
-watch(cacheKey, () => { tracks.value = []; loadRecommend(true) })
 </script>
 
 <style scoped>

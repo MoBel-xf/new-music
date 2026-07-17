@@ -107,25 +107,25 @@
     <van-popup v-model:show="showModePicker" position="left" :style="{ width: '80%', height: '100%', border: 'none' }">
       <div class="mode-panel" @touchstart.stop @touchmove.stop @touchend.stop>
         <div class="mode-panel-header">
-          <span class="mode-panel-title">推荐类型</span>
-          <span class="mode-panel-subtitle">按热词快速切换一组推荐歌曲</span>
+          <span class="mode-panel-title">播放偏好</span>
+          <span class="mode-panel-subtitle">纯前端根据关键词构建播放队列</span>
         </div>
 
         <button
-          v-for="keyword in hotKeywordOptions"
-          :key="keyword"
+          v-for="option in recommendProfiles"
+          :key="option.id"
           class="mode-option"
-          :class="{ active: keyword === recommendKeyword }"
-          @click="pickRecommendKeyword(keyword)"
+          :class="{ active: option.id === recommendProfile }"
+          @click="switchRecommendProfile(option.id)"
         >
           <span class="mode-option-icon">
-            <Icon name="icon-music" size="18" />
+            <Icon :name="option.icon" size="18" />
           </span>
           <span class="mode-option-copy">
-            <span class="mode-option-label">{{ keyword }}</span>
-            <!-- <span class="mode-option-desc">按该关键词重新生成当前播放队列</span> -->
+            <span class="mode-option-label">{{ option.label }}</span>
+            <span class="mode-option-desc">{{ option.description }}</span>
           </span>
-          <!-- <span v-if="keyword === recommendKeyword" class="mode-option-check">当前</span> -->
+          <span v-if="option.id === recommendProfile" class="mode-option-check">当前</span>
         </button>
       </div>
     </van-popup>
@@ -200,7 +200,8 @@ import SourceBadge from '@/components/SourceBadge.vue'
 
 defineOptions({ name: 'PlayPage' })
 
-const HOT_KEYWORD_CACHE_KEY = 'xf-play-hot-keyword'
+const PLAY_PROFILE_CACHE_KEY = 'xf-play-recommend-profile'
+type RecommendProfile = 'default' | 'familiar' | 'fresh'
 
 const router = useRouter()
 const appConfig = useAppConfigStore()
@@ -210,7 +211,7 @@ const playlistStore = usePlaylistStore()
 const showModePicker = ref(false)
 const showQueue = ref(false)
 const showMore = ref(false)
-const recommendKeyword = ref(readCachedHotKeyword())
+const recommendProfile = ref<RecommendProfile>(readCachedRecommendProfile())
 const progressRef = ref<HTMLElement>()
 const lyricZoneRef = ref<HTMLElement>()
 const lyricLineRefs = ref<Array<HTMLElement | null>>([])
@@ -221,15 +222,15 @@ const userScrolling = ref(false)
 let userScrollTimer = 0
 let lyricZoneObserver: ResizeObserver | null = null
 
-function readCachedHotKeyword() {
-  if (typeof window === 'undefined') return appConfig.playQueryKeyword
-  const cached = window.localStorage.getItem(HOT_KEYWORD_CACHE_KEY)
-  return cached?.trim() || appConfig.playQueryKeyword
+function readCachedRecommendProfile(): RecommendProfile {
+  if (typeof window === 'undefined') return 'default'
+  const cached = window.localStorage.getItem(PLAY_PROFILE_CACHE_KEY)
+  return cached === 'familiar' || cached === 'fresh' ? cached : 'default'
 }
 
-function cacheHotKeyword(keyword: string) {
+function cacheRecommendProfile(profile: RecommendProfile) {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(HOT_KEYWORD_CACHE_KEY, keyword)
+  window.localStorage.setItem(PLAY_PROFILE_CACHE_KEY, profile)
 }
 
 let swipeTouchStartY = 0
@@ -432,18 +433,37 @@ async function toggleFav() {
 const MODE_ICONS: Record<PlayMode, string> = { list: 'list', single: 'single', shuffle: 'shuffle' }
 const modeIcon = computed(() => `icon-${MODE_ICONS[player.playMode]}`)
 
-const hotKeywordOptions = computed(() => {
-  const defaults = ['爆火', '流行', '热歌', '热门单曲', '抖音热歌', '华语流行', '飙升榜', '新歌榜', '网络热歌', '年度热单']
-  return Array.from(new Set([appConfig.playQueryKeyword, ...defaults].filter(Boolean)))
-})
+const recommendProfiles: Array<{ id: RecommendProfile; label: string; description: string; icon: string }> = [
+  { id: 'default', label: '默认', description: '使用「我的」页设置的播放关键词', icon: 'icon-music' },
+  { id: 'familiar', label: '熟悉', description: '从收藏和播放历史中提取常听歌手', icon: 'icon-like' },
+  { id: 'fresh', label: '新鲜', description: '轮换检索新歌榜、独立音乐与新声', icon: 'icon-replay' }
+]
 
 function cycleMode() {
   const order: PlayMode[] = ['list', 'single', 'shuffle']
   player.setPlayMode(order[(order.indexOf(player.playMode) + 1) % order.length])
 }
 
-async function pickRecommendKeyword(keyword: string) {
+function getFamiliarKeyword() {
+  const source = [...playlistStore.history, ...playlistStore.favorites]
+  const artist = source.find((item) => item.artist && item.artist !== '未知歌手')?.artist?.trim()
+  return artist || '华语经典'
+}
+
+function getFreshKeyword() {
+  const keywords = ['新歌推荐', '新歌榜', '独立音乐', '新声代']
+  return keywords[Math.floor(Date.now() / 86_400_000) % keywords.length]
+}
+
+function getProfileKeyword(profile: RecommendProfile) {
+  if (profile === 'familiar') return getFamiliarKeyword()
+  if (profile === 'fresh') return getFreshKeyword()
+  return appConfig.playQueryKeyword
+}
+
+async function switchRecommendProfile(profile: RecommendProfile) {
   showModePicker.value = false
+  const keyword = getProfileKeyword(profile)
   try {
     const tracks = await searchAllSources({ keyword, limit: appConfig.playQueryLimit })
     if (!tracks.length) {
@@ -451,9 +471,9 @@ async function pickRecommendKeyword(keyword: string) {
       return
     }
     await player.loadTrackOnly(tracks[0], tracks, { type: 'results' })
-    recommendKeyword.value = keyword
-    cacheHotKeyword(keyword)
-    showToast(`已切换到${keyword}`)
+    recommendProfile.value = profile
+    cacheRecommendProfile(profile)
+    showToast(`已切换为${recommendProfiles.find((item) => item.id === profile)?.label}：${keyword}`)
   } catch {
     showToast('加载失败，请稍后重试')
   }

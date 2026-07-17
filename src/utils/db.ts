@@ -263,8 +263,9 @@ export async function dbClearAllCache(): Promise<void> {
   localStorage.removeItem('xf-search-history-v2')
   // 清除播放器会话（音频链接已失效，恢复会话会导致播放失败）
   localStorage.removeItem('xf-player-session-v1')
-  // 清除播放页热词缓存
+  // 清除播放页推荐偏好缓存（兼容旧版热词缓存）
   localStorage.removeItem('xf-play-hot-keyword')
+  localStorage.removeItem('xf-play-recommend-profile')
 }
 
 /** 彻底清除所有数据，包括收藏、歌单和全部 IndexedDB */
