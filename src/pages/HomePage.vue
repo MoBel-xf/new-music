@@ -331,7 +331,7 @@ onUnmounted(() => {
 .home-page {
   height: 100%;
   overflow: hidden;
-  background: var(--bg-base);
+  background: transparent;
 }
 
 /* ── 滚动容器 ────────────────────────────────────────────────────────── */
@@ -448,7 +448,7 @@ onUnmounted(() => {
 /* ── 瀑布流区 ────────────────────────────────────────────────────────── */
 .waterfall-section {
   padding: 24px 16px 0;
-  background: var(--bg-canvas);
+  background: transparent;
   position: relative;
   z-index: 1;
   overflow: hidden;

@@ -643,10 +643,7 @@ watch(
   min-height: 0;
   touch-action: pan-y;
   overflow: hidden;
-  background-color: var(--page-bg-start, rgb(12, 14, 20));
-  transition:
-    background-color 0.6s ease,
-    color 0.6s ease;
+  background-color: transparent;
 }
 
 .swipe-content {
@@ -657,27 +654,6 @@ watch(
   flex: 1;
   min-height: 0;
   will-change: transform;
-}
-
-.play-page::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background: linear-gradient(180deg, var(--page-bg-start) 0%, var(--page-bg-mid) 48%, var(--page-bg-end) 100%);
-  transition: background 0.6s ease;
-}
-
-.play-page::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--page-accent) 28%, transparent) 0%, transparent 50%),
-    radial-gradient(circle at 70% 80%, color-mix(in srgb, var(--page-accent-bright) 14%, transparent) 0%, transparent 40%);
 }
 
 .top-bar {
@@ -962,7 +938,7 @@ watch(
   align-items: center;
   padding: calc(env(safe-area-inset-top, 0px) + 12px) 18px 12px;
   gap: 14px;
-  background: linear-gradient(180deg, rgba(0,0,0,0.35) 0%, transparent 100%);
+  background: transparent;
 }
 
 .lyrics-header-info {
@@ -1121,8 +1097,7 @@ watch(
 
 .mode-panel {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  /* grid-auto-rows: minmax(128px, auto); */
+  grid-template-columns: minmax(0, 1fr);
   align-content: flex-start;
   gap: 12px;
   width: 100%;
@@ -1156,16 +1131,15 @@ watch(
 
 .mode-option {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 10px;
   width: 100%;
-  /* min-height: 128px; */
   border: 1px solid var(--line-soft);
   border-radius: 24px;
   background: color-mix(in srgb, var(--surface-1) 90%, transparent);
-  padding: 16px 10px;
+  padding: 14px 16px;
   color: var(--text-primary);
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.12);
   transition:
@@ -1205,7 +1179,7 @@ watch(
   gap: 4px;
   min-width: 0;
   width: 100%;
-  text-align: center;
+  text-align: left;
 }
 
 .mode-option-label {
@@ -1221,6 +1195,7 @@ watch(
 }
 
 .mode-option-check {
+  margin-left: auto;
   font-size: 12px;
   font-weight: 700;
   color: var(--brand-from);
@@ -1518,16 +1493,15 @@ watch(
   }
 
   .mode-panel {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
     padding-left: 12px;
     padding-right: 12px;
   }
 
   .mode-option {
-    /* min-height: 114px; */
     border-radius: 20px;
-    padding: 14px 8px;
+    padding: 14px 12px;
   }
 
   .mode-option-icon {

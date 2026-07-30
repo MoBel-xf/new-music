@@ -1,0 +1,54 @@
+{
+  "id": "/",
+  "name": "APP Music",
+  "short_name": "Music",
+  "description": "沉浸式在线音乐播放器",
+  "lang": "zh-CN",
+  "start_url": "/play",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone"],
+  "orientation": "portrait-primary",
+  "background_color": "transparent",
+  "theme_color": "transparent",
+  "icons": [
+    {
+      "src": "/pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "播放页",
+      "short_name": "播放",
+      "url": "/play",
+      "icons": [{ "src": "/pwa-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "首页推荐",
+      "short_name": "首页",
+      "url": "/home",
+      "icons": [{ "src": "/pwa-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "我的音乐",
+      "short_name": "我的",
+      "url": "/mine",
+      "icons": [{ "src": "/pwa-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

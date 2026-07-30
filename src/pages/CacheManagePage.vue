@@ -228,20 +228,6 @@ onMounted(refreshStats)
   transition: background-color 0.6s ease, color 0.6s ease;
 }
 
-/* 沉浸式渐变背景（与播放页一致） */
-.cache-page::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--dominant-color) 12%, transparent) 0%, transparent 50%),
-    radial-gradient(circle at 70% 80%, color-mix(in srgb, var(--dominant-color) 8%, transparent) 0%, transparent 40%),
-    linear-gradient(180deg, var(--bg-base) 0%, color-mix(in srgb, var(--dominant-color) 4%, var(--bg-base)) 100%);
-  transition: background 0.6s ease;
-}
-
 /* ── 顶部导航 ──────────────────────────────────────────────────────────── */
 .cache-header {
   position: relative;

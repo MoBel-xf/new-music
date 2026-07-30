@@ -16,20 +16,33 @@ body,
   margin: 0;
   padding: 0;
   width: 100%;
-  height: var(--app-height);
-  min-height: var(--app-height);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'PingFang SC', sans-serif;
-  background: var(--bg-base);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
-  overflow: hidden;
 }
 
+html,
 body {
-  background:
-    radial-gradient(circle at 30% 0%, var(--dominant-tint-2) 0%, transparent 36%),
-    radial-gradient(circle at 80% 100%, var(--dominant-tint-1) 0%, transparent 28%), var(--bg-base);
-  transition: background 0.5s ease;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: var(--page-background);
+  background-color: var(--page-background-fallback);
+}
+
+#app {
+  height: 100dvh;
+  min-height: 100dvh;
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  background: var(--page-background);
+  background-color: var(--page-background-fallback);
+}
+
+#app > :not(.immersive-bg) {
+  position: relative;
+  z-index: 1;
 }
 
 /* 滚动条美化 */

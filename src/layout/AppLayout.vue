@@ -2,16 +2,14 @@
   <div class="app-layout" @click.capture="player.resumePendingPlay" @touchstart.capture.passive="player.resumePendingPlay">
     <main class="layout-body">
       <router-view v-slot="{ Component, route: currentRoute }">
-        <transition :name="getTransitionName(currentRoute)" mode="out-in">
-          <keep-alive :include="['HomePage', 'MinePage']">
-            <component :is="Component" :key="currentRoute.name" />
-          </keep-alive>
-        </transition>
+        <keep-alive :include="['HomePage', 'MinePage']">
+          <component :is="Component" :key="currentRoute.name" />
+        </keep-alive>
       </router-view>
     </main>
 
-    <nav ref="tabbarRef" class="tabbar" :class="{ 'tabbar-play': useDominantTabbarTone }" :style="tabbarStyle">
-      <svg class="tabbar-ring" :viewBox="`0 0 ${ringBox.width} ${ringBox.height}`" aria-hidden="true">
+    <nav ref="tabbarRef" class="tabbar" :class="{ 'tabbar-play': isPlayRoute }" :style="tabbarStyle">
+      <svg v-if="!isPlayRoute" class="tabbar-ring" :viewBox="`0 0 ${ringBox.width} ${ringBox.height}`" aria-hidden="true">
         <path class="tabbar-ring-track" :d="ringPath" pathLength="100" />
         <path class="tabbar-ring-progress" :d="ringPath" pathLength="100" />
       </svg>
@@ -67,7 +65,6 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { searchAllSources } from '@/api'
 import { useColorExtract } from '@/composables/useColorExtract'
-import { useTheme } from '@/composables/useTheme'
 import { parseColor, mixColor } from '@/utils/color'
 import Icon from '@/components/Icon.vue'
 import { useAppConfigStore } from '@/stores/appConfig'
@@ -79,7 +76,6 @@ const route = useRoute()
 const appConfig = useAppConfigStore()
 const player = usePlayerStore()
 const { prefetch } = useColorExtract()
-const { theme } = useTheme()
 
 const loadingDefault = ref(false)
 const HOT_KEYWORD_CACHE_KEY = 'xf-play-hot-keyword'
@@ -96,9 +92,6 @@ const routeTabMap: Record<string, string> = {
 }
 
 const isPlayRoute = computed(() => route.name === 'play')
-const useDominantTabbarTone = computed(
-  () => Boolean(player.currentTrack) && (isPlayRoute.value || appConfig.keepTabbarDominantColor || theme.value === 'dominant')
-)
 const playRecommendCacheKey = computed(() => `${appConfig.playQueryKeyword}:${appConfig.playQueryLimit}`)
 
 const isLightTabbarTone = computed(() => {
@@ -114,32 +107,21 @@ const tabbarStyle = computed(() => {
   const isLight = isLightTabbarTone.value
   const base: Record<string, string> = {
     '--tabbar-progress-value': player.currentTrack ? `${progressValue}` : '0',
-    '--tabbar-progress-color': useDominantTabbarTone.value ? mixColor(accent, isLight ? '#202533' : '#ffffff', isLight ? 0.12 : 0.28) : '#73f0bb',
-    '--tabbar-fg-primary': useDominantTabbarTone.value ? (isLight ? '#202533' : '#ffffff') : 'var(--text-primary)',
-    '--tabbar-fg-secondary': useDominantTabbarTone.value ? (isLight ? 'rgba(32,37,51,0.66)' : 'rgba(255,255,255,0.68)') : 'var(--text-tertiary)',
-    '--tabbar-center-bg': useDominantTabbarTone.value ? (isLight ? 'rgba(255,255,255,0.36)' : 'rgba(255,255,255,0.08)') : 'var(--surface-1)',
-    '--tabbar-center-border': useDominantTabbarTone.value ? (isLight ? 'rgba(32,37,51,0.1)' : 'rgba(255,255,255,0.12)') : 'var(--line-soft)',
-    '--tabbar-control-bg': useDominantTabbarTone.value
+    '--tabbar-progress-color': isPlayRoute.value ? mixColor(accent, isLight ? '#202533' : '#ffffff', isLight ? 0.12 : 0.28) : 'var(--dominant-accent)',
+    '--tabbar-fg-primary': isPlayRoute.value ? (isLight ? '#202533' : '#ffffff') : 'var(--text-primary)',
+    '--tabbar-fg-secondary': isPlayRoute.value ? (isLight ? 'rgba(32,37,51,0.66)' : 'rgba(255,255,255,0.68)') : 'var(--text-tertiary)',
+    '--tabbar-center-bg': isPlayRoute.value ? (isLight ? 'rgba(255,255,255,0.36)' : 'rgba(255,255,255,0.08)') : 'var(--surface-1)',
+    '--tabbar-center-border': isPlayRoute.value ? (isLight ? 'rgba(32,37,51,0.1)' : 'rgba(255,255,255,0.12)') : 'var(--line-soft)',
+    '--tabbar-control-bg': isPlayRoute.value
       ? mixColor(accent, isLight ? '#ffffff' : '#0f1117', isLight ? 0.62 : 0.3)
-      : 'color-mix(in srgb, var(--dominant-color, #1fd6ff) 25%, rgba(255, 255, 255, 0.1))',
-    '--tabbar-cover-bg': useDominantTabbarTone.value ? (isLight ? 'rgba(255,255,255,0.44)' : 'rgba(255,255,255,0.12)') : 'rgba(255, 255, 255, 0.1)'
-  }
-  if (useDominantTabbarTone.value) {
-    base['--tabbar-bg'] = player.dominantColor
+      : 'var(--surface-2)',
+    '--tabbar-cover-bg': isPlayRoute.value ? (isLight ? 'rgba(255,255,255,0.44)' : 'rgba(255,255,255,0.12)') : 'var(--surface-2)'
   }
   return base
 })
 
 const routeTab = computed(() => routeTabMap[route.name as string] ?? 'home')
 
-const SECONDARY_ROUTES = new Set(['search', 'playlist', 'favorites', 'history', 'cache'])
-const TAB_ORDER: Record<string, number> = { home: 0, play: 1, mine: 2 }
-
-function getTransitionName(currentRoute: { name?: string | symbol | null }) {
-  const name = String(currentRoute.name ?? '')
-  if (SECONDARY_ROUTES.has(name)) return 'slide-up'
-  return 'fade'
-}
 const ringPath = computed(() => {
   const strokeInset = 1
   const width = Math.max(4, ringBox.value.width - strokeInset * 2)
@@ -318,9 +300,9 @@ onBeforeUnmount(() => {
 
 .tabbar {
   position: fixed;
-  bottom: calc(var(--safe-bottom) + 10px);
-  left: 10px;
-  right: 10px;
+  bottom: 6px;
+  left: 6px;
+  right: 6px;
   height: var(--tabbar-height);
   background: color-mix(in srgb, var(--bg-sheet) 92%, transparent);
   backdrop-filter: blur(22px);
@@ -336,13 +318,13 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   width: auto;
   overflow: hidden;
-  transition:
-    background 0.4s ease,
-    box-shadow 0.4s ease;
+  transition: box-shadow 0.2s ease;
 }
 
 .tabbar.tabbar-play {
-  background: color-mix(in srgb, var(--tabbar-bg, var(--bg-sheet)) 85%, rgba(0, 0, 0, 0.4));
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow: none;
 }
 

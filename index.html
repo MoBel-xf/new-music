@@ -4,19 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="referrer" content="no-referrer" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="application-name" content="APP Music" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="theme-color" content="#0b0e15" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)" />
+    <meta name="apple-mobile-web-app-title" content="APP Music" />
     <title>APP Music</title>
-    <link rel="icon" href="/public/favicon.ico" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" href="/favicon.ico" />
     <style>
       html,
       body {
         margin: 0;
         min-height: 100%;
-        background:
-          radial-gradient(circle at top, rgba(112, 196, 255, 0.18), transparent 34%), linear-gradient(180deg, #0b1018 0%, #121926 48%, #090d14 100%);
+        background: var(--initial-page-background, #0b0e15);
       }
 
       body {
@@ -27,11 +29,9 @@
         position: fixed;
         inset: 0;
         z-index: 9999;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background:
-          radial-gradient(circle at top, rgba(112, 196, 255, 0.16), transparent 34%), linear-gradient(180deg, #0b1018 0%, #121926 48%, #090d14 100%);
+        display: grid;
+        place-items: center;
+        background: var(--initial-page-background, #0b0e15);
         transition:
           opacity 0.35s ease,
           visibility 0.35s ease;
@@ -43,160 +43,122 @@
         pointer-events: none;
       }
 
-      .boot-card {
-        position: relative;
-        min-width: 168px;
-        padding: 24px 24px 20px;
-        border-radius: 28px;
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        text-align: center;
-        overflow: hidden;
+      .loader {
+        width: 60px;
+        height: 20px;
+        display: grid;
+        color: var(--dominant-color, #ff6b6b);
       }
 
-      .boot-card::before {
+      .loader::before,
+      .loader::after {
         content: '';
-        position: absolute;
-        inset: auto -18% -38% auto;
-        width: 120px;
-        height: 120px;
-        border-radius: 50%;
-        background: radial-gradient(circle, rgba(115, 240, 187, 0.28), transparent 68%);
-        filter: blur(10px);
-        will-change: transform, opacity;
-        transform: translateZ(0);
-        animation: boot-breathe 2.4s ease-in-out infinite;
+        grid-area: 1/1;
+        --c: #0000 calc(100% / 3), var(--dominant-color, #ff6b6b) 0 calc(2 * 100% / 3), #0000 0;
+        --c1: linear-gradient(90deg, var(--c));
+        --c2: linear-gradient(0deg, var(--c));
+        background: var(--c1), var(--c2), var(--c1), var(--c2);
+        background-size: 300% 4px, 4px 300%;
+        background-repeat: no-repeat;
+        animation: l15 1.5s infinite;
       }
 
-      .boot-notes {
-        position: relative;
-        z-index: 1;
-        display: flex;
-        align-items: flex-end;
-        justify-content: center;
-        gap: 8px;
-        height: 58px;
-        margin: 0 auto 14px;
+      .loader::after {
+        animation-delay: -0.75s;
       }
 
-      .boot-note {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 20px;
-        color: #f5f9ff;
-        font-size: 26px;
-        line-height: 1;
-        text-shadow: 0 6px 16px rgba(112, 196, 255, 0.24);
-        will-change: transform, opacity;
-        transform: translateZ(0);
-        backface-visibility: hidden;
-        animation: boot-note-bounce 1.15s ease-in-out infinite;
-      }
-
-      .boot-note:nth-child(1) {
-        color: #73f0bb;
-        animation-delay: 0s;
-      }
-
-      .boot-note:nth-child(2) {
-        color: #70c4ff;
-        animation-delay: 0.18s;
-      }
-
-      .boot-note:nth-child(3) {
-        color: #ffd36e;
-        animation-delay: 0.36s;
-      }
-
-      .boot-title {
-        position: relative;
-        z-index: 1;
-        margin: 0;
-        color: #f5f9ff;
-        font-size: 18px;
-        font-weight: 800;
-        letter-spacing: 0.02em;
-      }
-
-      .boot-subtitle {
-        position: relative;
-        z-index: 1;
-        margin: 6px 0 0;
-        color: rgba(245, 249, 255, 0.64);
-        font-size: 12px;
-      }
-
-      @keyframes boot-note-bounce {
-        0%,
-        100% {
-          transform: translate3d(0, 0, 0) scale(0.92);
-          opacity: 0.58;
+      @keyframes l15 {
+        0% {
+          background-position: 50% 0, 100% 100%, 0 100%, 0 0;
         }
-
-        40% {
-          transform: translate3d(0, -12px, 0) scale(1.08);
-          opacity: 1;
+        25% {
+          background-position: 0 0, 100% 50%, 0 100%, 0 0;
         }
-
-        65% {
-          transform: translate3d(0, -4px, 0) scale(0.98);
-          opacity: 0.9;
-        }
-      }
-
-      @keyframes boot-breathe {
-        0%,
-        100% {
-          transform: scale(0.96);
-          opacity: 0.82;
-        }
-
         50% {
-          transform: scale(1.06);
-          opacity: 1;
+          background-position: 0 0, 100% 0, 50% 100%, 0 0;
+        }
+        75% {
+          background-position: 0 0, 100% 0, 100% 100%, 0 50%;
+        }
+        75.01% {
+          background-position: 100% 0, 100% 0, 100% 100%, 0 50%;
+        }
+        100% {
+          background-position: 50% 0, 100% 0, 100% 100%, 0 100%;
         }
       }
     </style>
-  </head>
-  <body>
-    <div id="boot-loading" aria-live="polite">
-      <div class="boot-card">
-        <div class="boot-notes" aria-hidden="true">
-          <span class="boot-note">♪</span>
-          <span class="boot-note">♪</span>
-          <span class="boot-note">♪</span>
-          <!-- <span class="boot-note">♫</span>
-          <span class="boot-note">♬</span> -->
-        </div>
-        <p class="boot-title">APP Music</p>
-        <p class="boot-subtitle" id="boot-subtitle">正在加载播放页…</p>
-      </div>
-    </div>
-    <div id="app"></div>
     <script>
       ;(function () {
-        var subtitle = document.getElementById('boot-subtitle')
-        if (!subtitle) return
+        try {
+          var session = JSON.parse(localStorage.getItem('xf-player-session-v1') || 'null')
+          var savedTheme = localStorage.getItem('xf-theme')
+          var path = location.pathname
+          var isPlayPage = path === '/' || path === '/play'
+          var themeBackground = savedTheme === 'light' ? '#f7f7fb' : '#0b0e15'
+          var root = document.documentElement
 
-        var hash = window.location.hash || '#/play'
-        var path = hash.replace(/^#/, '').split('?')[0] || '/play'
-        var textMap = {
-          '/': '正在加载播放页…',
-          '/play': '正在加载播放页…',
-          '/home': '正在加载首页…',
-          '/mine': '正在加载我的页面…',
-          '/search': '正在加载搜索页…',
-          '/favorites': '正在加载收藏列表…',
-          '/history': '正在加载历史记录…'
+          if (savedTheme === 'light') {
+            root.setAttribute('data-theme', 'light')
+          } else {
+            root.removeAttribute('data-theme')
+          }
+          root.setAttribute('data-page', isPlayPage ? 'play' : 'theme')
+
+          // 不再写入 theme-color。网页与 PWA 的系统栏直接透出页面本身，
+          // 避免原生纯色与页面渐变之间产生色差或延迟切换。
+          document.querySelectorAll('meta[name="theme-color"]').forEach(function (meta) {
+            meta.remove()
+          })
+
+          var initialBackground = themeBackground
+          var color = session && typeof session.dominantColor === 'string' ? session.dominantColor : '#ff6b6b'
+
+          function parseColor(value) {
+            if (value.charAt(0) === '#') {
+              var hex = value.slice(1)
+              if (hex.length === 3) hex = hex.replace(/./g, function (part) { return part + part })
+              if (!/^[0-9a-f]{6}$/i.test(hex)) return null
+              return [parseInt(hex.slice(0, 2), 16), parseInt(hex.slice(2, 4), 16), parseInt(hex.slice(4, 6), 16)]
+            }
+            var channels = value.match(/\d+(?:\.\d+)?/g)
+            return channels && channels.length >= 3 ? channels.slice(0, 3).map(Number) : null
+          }
+
+          function mix(source, target, weight) {
+            return 'rgb(' + source.map(function (channel, index) {
+              return Math.round(channel * (1 - weight) + target[index] * weight)
+            }).join(', ') + ')'
+          }
+
+          var rgb = parseColor(color)
+          if (isPlayPage && rgb) {
+            var luminance = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255
+            var isLightColor = luminance > 0.65
+            var start = mix(rgb, isLightColor ? [255, 247, 239] : [26, 26, 46], isLightColor ? 0.82 : 0.08)
+            var mid = mix(rgb, isLightColor ? [244, 247, 251] : [20, 20, 40], isLightColor ? 0.9 : 0.18)
+            var immersiveBackground = 'linear-gradient(180deg, ' + start + ' 0%, ' + mid + ' 50%, ' + start + ' 100%)'
+
+            root.style.setProperty('--dominant-color', color)
+            root.style.setProperty('--dominant-bg-start', start)
+            root.style.setProperty('--dominant-bg-mid', mid)
+            root.style.setProperty('--dominant-bg-end', start)
+            root.style.setProperty('--immersive-bg', immersiveBackground)
+            initialBackground = immersiveBackground
+          }
+
+          root.style.setProperty('--initial-page-background', initialBackground)
+        } catch (_) {
+          // 首次打开或旧缓存损坏时使用默认沉浸色。
         }
-
-        subtitle.textContent = path.indexOf('/playlist/') === 0 ? '正在加载歌单详情…' : textMap[path] || '正在加载页面…'
       })()
     </script>
+  </head>
+  <body>
+    <div id="boot-loading" role="status" aria-label="正在加载页面">
+      <div class="loader" aria-hidden="true"></div>
+    </div>
+    <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

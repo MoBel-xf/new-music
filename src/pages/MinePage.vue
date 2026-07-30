@@ -130,6 +130,10 @@
               <span><Icon name="icon-delete" size="16" /> 缓存管理</span>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
+            <div class="setting-item" @click="installPwa">
+              <span><Icon name="icon-down" size="16" /> 安装主屏应用</span>
+              <span class="setting-tail">{{ pwaInstallState.isStandalone.value ? '已安装' : '独立全屏' }}</span>
+            </div>
           </div>
         </div>
 
@@ -164,10 +168,6 @@
           <van-field v-model="draft.playQueryLimit" label="播放条数" type="number" input-align="right" />
           <van-field v-model="draft.prefetchCount" label="预缓存" type="number" input-align="right" />
           <van-field v-model="draft.colorPrefetchCount" label="色彩预取" type="number" input-align="right" />
-          <div class="config-switch">
-            <div><span class="csw-title">其他页面保留主导色</span><span class="csw-desc">切换页面时 tabbar 继续沿用当前歌曲主导色</span></div>
-            <van-switch v-model="draft.keepTabbarDominantColor" size="20px" active-color="var(--dominant-color)" />
-          </div>
         </div>
         <div class="config-actions">
           <button class="cfg-btn ghost" @click="showConfig = false">取消</button>
@@ -186,8 +186,9 @@ import { useAppConfigStore } from '@/stores/appConfig'
 import { usePlayerStore } from '@/stores/player'
 import { usePlaylistStore } from '@/stores/playlist'
 import { useTheme } from '@/composables/useTheme'
+import { pwaInstallState, requestPwaInstall } from '@/composables/usePwaInstall'
 import type { ThemeMode } from '@/composables/useTheme'
-import { showConfirmDialog, showToast } from 'vant'
+import { showConfirmDialog, showDialog, showToast } from 'vant'
 import type { Playlist, PlayMode, Track } from '@/types/music'
 import Icon from '@/components/Icon.vue'
 
@@ -198,11 +199,11 @@ const plStore = usePlaylistStore()
 const { theme, setTheme } = useTheme()
 
 const themeOptions: { value: ThemeMode; label: string }[] = [
-  { value: 'light', label: '浅色' }, { value: 'dark', label: '深色' }, { value: 'dominant', label: '沉浸' }
+  { value: 'dark', label: '深色' }, { value: 'light', label: '浅色' }
 ]
 
 const showCreate = ref(false); const newName = ref(''); const showConfig = ref(false)
-const draft = ref({ homeQueryKeyword: '', homeQueryLimit: '12', playQueryKeyword: '', playQueryLimit: '12', prefetchCount: '4', colorPrefetchCount: '6', keepTabbarDominantColor: false })
+const draft = ref({ homeQueryKeyword: '', homeQueryLimit: '12', playQueryKeyword: '', playQueryLimit: '12', prefetchCount: '4', colorPrefetchCount: '6' })
 
 interface CoverTile {
   title: string
@@ -314,12 +315,30 @@ async function doRename() { if (!renameTarget.value || !renameVal.value.trim()) 
 async function confirmDelete(id: string) { await showConfirmDialog({ title: '确认删除', message: '删除后无法恢复' }); await plStore.deletePlaylist(id); showToast('歌单已删除') }
 
 function openAppConfigPopup() {
-  draft.value = { homeQueryKeyword: appConfig.homeQueryKeyword, homeQueryLimit: String(appConfig.homeQueryLimit), playQueryKeyword: appConfig.playQueryKeyword, playQueryLimit: String(appConfig.playQueryLimit), prefetchCount: String(appConfig.prefetchCount), colorPrefetchCount: String(appConfig.colorPrefetchCount), keepTabbarDominantColor: appConfig.keepTabbarDominantColor }
+  draft.value = { homeQueryKeyword: appConfig.homeQueryKeyword, homeQueryLimit: String(appConfig.homeQueryLimit), playQueryKeyword: appConfig.playQueryKeyword, playQueryLimit: String(appConfig.playQueryLimit), prefetchCount: String(appConfig.prefetchCount), colorPrefetchCount: String(appConfig.colorPrefetchCount) }
   showConfig.value = true
 }
 function saveConfig() {
-  appConfig.patchConfig({ homeQueryKeyword: draft.value.homeQueryKeyword, homeQueryLimit: Number(draft.value.homeQueryLimit), playQueryKeyword: draft.value.playQueryKeyword, playQueryLimit: Number(draft.value.playQueryLimit), prefetchCount: Number(draft.value.prefetchCount), colorPrefetchCount: Number(draft.value.colorPrefetchCount), keepTabbarDominantColor: draft.value.keepTabbarDominantColor })
+  appConfig.patchConfig({ homeQueryKeyword: draft.value.homeQueryKeyword, homeQueryLimit: Number(draft.value.homeQueryLimit), playQueryKeyword: draft.value.playQueryKeyword, playQueryLimit: Number(draft.value.playQueryLimit), prefetchCount: Number(draft.value.prefetchCount), colorPrefetchCount: Number(draft.value.colorPrefetchCount) })
   showConfig.value = false; showToast('配置已保存')
+}
+
+async function installPwa() {
+  const result = await requestPwaInstall()
+  if (result === 'installed') {
+    showToast('当前已是主屏应用')
+    return
+  }
+  if (result === 'prompted') return
+
+  const isIosGuide = result === 'ios-guide'
+  await showDialog({
+    title: '安装 APP Music',
+    message: isIosGuide
+      ? '请点击 Safari 底部的分享按钮，然后选择“添加到主屏幕”，保持“作为网页 App 打开”开启。'
+      : '请打开浏览器菜单，选择“安装应用”或“添加到主屏幕”。',
+    confirmButtonText: '知道了'
+  })
 }
 </script>
 
@@ -327,7 +346,7 @@ function saveConfig() {
 .mine-page {
   height: 100%;
   overflow: hidden;
-  background: var(--bg-base);
+  background: transparent;
 }
 
 .page-scroll-inner {
@@ -559,7 +578,7 @@ function saveConfig() {
 /* ── 内容区 ──────────────────────────────────────────────────────────── */
 .content-area {
   padding: 20px 16px 0;
-  background: var(--bg-canvas);
+  background: transparent;
   position: relative;
   z-index: 1;
 }
@@ -641,6 +660,7 @@ function saveConfig() {
 .setting-item span { display: flex; align-items: center; gap: 8px; }
 .setting-item :deep(.icon) { color: var(--text-tertiary); }
 .setting-item svg { color: var(--text-tertiary); }
+.setting-item .setting-tail { color: var(--dominant-accent); font-size: 11px; font-weight: 600; }
 
 .footer-text { text-align: center; font-size: 10px; color: var(--text-quaternary); padding: 12px 0 0; }
 .bottom-pad { height: calc(var(--playerbar-height) + var(--tabbar-height) + var(--safe-bottom) + 8px); }
@@ -654,9 +674,6 @@ function saveConfig() {
   flex: 1; overflow-y: auto; border: 1px solid var(--dominant-border); border-radius: 20px;
   background: radial-gradient(circle at 20% 0%, var(--dominant-tint-2) 0%, transparent 40%), color-mix(in srgb, var(--bg-card) 94%, transparent);
 }
-.config-switch { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; border-top: 1px solid var(--line-soft); }
-.csw-title { display: block; font-size: 14px; font-weight: 600; color: var(--text-primary); }
-.csw-desc { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
 .config-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 16px; padding: 12px 0 calc(var(--playerbar-height) + var(--tabbar-height) + var(--safe-bottom) + 16px); }
 .cfg-btn { height: 44px; border: none; border-radius: 14px; font-size: 14px; font-weight: 700; cursor: pointer; }
 .cfg-btn.ghost { color: var(--text-secondary); background: var(--surface-1); }

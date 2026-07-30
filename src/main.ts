@@ -7,24 +7,25 @@ import '@unocss/reset/tailwind.css'
 import '@/styles/global.css'
 import '@/styles/vant-override.css'
 import 'virtual:svg-icons-register'
+import { initPwaInstall } from '@/composables/usePwaInstall'
 
 const app = createApp(App)
 app.use(createPinia())
 app.use(router)
+initPwaInstall()
+
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((error) => {
+      console.warn('[PWA] Service Worker 注册失败', error)
+    })
+  })
+}
 
 // 主题必须在 store 初始化前应用，否则 restoreSession 中 data-theme 尚未设置
 import { useTheme } from '@/composables/useTheme'
 const { initTheme } = useTheme()
 initTheme()
-
-function setViewportVars() {
-  const root = document.documentElement
-  const viewportHeight = window.visualViewport?.height ?? window.innerHeight
-  const viewportWidth = window.visualViewport?.width ?? window.innerWidth
-
-  root.style.setProperty('--app-height', `${viewportHeight}px`)
-  root.style.setProperty('--app-width', `${viewportWidth}px`)
-}
 
 function hideBootLoading() {
   const bootLoading = document.getElementById('boot-loading')
@@ -45,13 +46,6 @@ function waitForFirstPaint() {
     })
   })
 }
-
-setViewportVars()
-window.addEventListener('resize', setViewportVars)
-window.addEventListener('orientationchange', setViewportVars)
-window.addEventListener('pageshow', setViewportVars)
-window.visualViewport?.addEventListener('resize', setViewportVars)
-window.visualViewport?.addEventListener('scroll', setViewportVars)
 
 // ── 长按自定义指令（替代 vue3-touch-events，零依赖）──────────────────
 app.directive('long-press', {

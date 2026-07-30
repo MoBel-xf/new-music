@@ -1,5 +1,9 @@
 ﻿/* src/styles/variables.css */
 :root {
+  /* 唯一页面画布：普通页跟随深浅主题，播放页切换为歌曲沉浸色 */
+  --page-background: var(--bg-base);
+  --play-page-background: var(--immersive-bg);
+  --page-background-fallback: var(--bg-base);
   --brand-from: #ff6b6b;
   --brand-to: #ff9a3c;
   --brand-grad: linear-gradient(135deg, #ff6b6b, #ff9a3c);
@@ -77,9 +81,10 @@
   --immersive-base-strong: #090b11;
   --immersive-dark-1: #151b28;
   --immersive-dark-2: #090b10;
-  --immersive-bg:
-    radial-gradient(circle at top, color-mix(in srgb, var(--dominant-color) 28%, transparent) 0%, transparent 42%),
-    linear-gradient(180deg, color-mix(in srgb, var(--dominant-color) 72%, #161b28) 0%, #101520 38%, #090b10 100%);
+  --dominant-bg-start: color-mix(in srgb, var(--dominant-color) 72%, #161b28);
+  --dominant-bg-mid: color-mix(in srgb, var(--dominant-color) 82%, #141428);
+  --dominant-bg-end: var(--dominant-bg-start);
+  --immersive-bg: linear-gradient(180deg, var(--dominant-bg-start) 0%, var(--dominant-bg-mid) 50%, var(--dominant-bg-end) 100%);
 
   --src-migu: #ff9040;
   --src-netease: #ff3b30;
@@ -100,7 +105,13 @@
   --playerbar-height: 72px;
   --app-height: 100dvh;
   --app-width: 100vw;
+  --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+:root[data-page='play'] {
+  --page-background: var(--play-page-background);
+  --page-background-fallback: var(--dominant-bg-start);
 }
 
 :root[data-theme='light'] {
@@ -156,7 +167,8 @@
   --immersive-base-strong: #edf0f6;
   --immersive-dark-1: #ffffff;
   --immersive-dark-2: #eef2f8;
-  --immersive-bg:
-    radial-gradient(circle at top, color-mix(in srgb, var(--dominant-color) 18%, white) 0%, transparent 42%),
-    linear-gradient(180deg, color-mix(in srgb, var(--dominant-color) 18%, white) 0%, #f7f8fb 42%, #eef2f8 100%);
+  --dominant-bg-start: color-mix(in srgb, var(--dominant-color) 18%, white);
+  --dominant-bg-mid: color-mix(in srgb, var(--dominant-color) 10%, #f7f8fb);
+  --dominant-bg-end: var(--dominant-bg-start);
+  --immersive-bg: linear-gradient(180deg, var(--dominant-bg-start) 0%, var(--dominant-bg-mid) 50%, var(--dominant-bg-end) 100%);
 }

@@ -1,9 +1,7 @@
 <template>
   <ImmersiveBackground />
-  <router-view v-slot="{ Component, route: currentRoute }">
-    <transition name="fade" mode="out-in">
-      <component :is="Component" :key="currentRoute.path" />
-    </transition>
+  <router-view v-slot="{ Component }">
+    <component :is="Component" />
   </router-view>
 </template>
 

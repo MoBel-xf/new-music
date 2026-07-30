@@ -13,7 +13,6 @@ interface AppConfigSnapshot {
   playQueryLimit: number
   prefetchCount: number
   colorPrefetchCount: number
-  keepTabbarDominantColor: boolean
   /** 会话有效期（分钟），超过后重新拉取歌曲详情 */
   sessionTTLMinutes: number
   /** 首页推荐缓存有效期（分钟），默认 30 */
@@ -33,12 +32,6 @@ function normalizeCount(value: unknown, fallback: number, min: number, max: numb
   return Math.min(max, Math.max(min, Math.round(count)))
 }
 
-function normalizeBoolean(value: unknown, fallback = false) {
-  if (typeof value === 'boolean') return value
-  if (typeof value === 'string') return value === 'true'
-  return fallback
-}
-
 export const useAppConfigStore = defineStore('app-config', () => {
   const homeQueryKeyword = ref(DEFAULT_HOME_QUERY_KEYWORD)
   const homeQueryLimit = ref(12)
@@ -46,7 +39,6 @@ export const useAppConfigStore = defineStore('app-config', () => {
   const playQueryLimit = ref(12)
   const prefetchCount = ref(4)
   const colorPrefetchCount = ref(6)
-  const keepTabbarDominantColor = ref(false)
   /** 会话有效期（分钟），默认 60 分钟 */
   const sessionTTLMinutes = ref(60)
   /** 首页推荐缓存有效期（分钟），默认 30 */
@@ -61,7 +53,6 @@ export const useAppConfigStore = defineStore('app-config', () => {
     playQueryLimit.value = normalizeCount(snapshot?.playQueryLimit, 12, 4, 40)
     prefetchCount.value = normalizeCount(snapshot?.prefetchCount, 4, 0, 12)
     colorPrefetchCount.value = normalizeCount(snapshot?.colorPrefetchCount, 6, 0, 16)
-    keepTabbarDominantColor.value = normalizeBoolean(snapshot?.keepTabbarDominantColor, false)
     sessionTTLMinutes.value = normalizeCount(snapshot?.sessionTTLMinutes, 60, 5, 1440)
     homeRecommendTTLMinutes.value = normalizeCount(snapshot?.homeRecommendTTLMinutes, 30, 5, 120)
     searchHistoryTTLDays.value = normalizeCount(snapshot?.searchHistoryTTLDays, 7, 1, 30)
@@ -87,7 +78,6 @@ export const useAppConfigStore = defineStore('app-config', () => {
       playQueryLimit: playQueryLimit.value,
       prefetchCount: prefetchCount.value,
       colorPrefetchCount: colorPrefetchCount.value,
-      keepTabbarDominantColor: keepTabbarDominantColor.value,
       sessionTTLMinutes: sessionTTLMinutes.value,
       homeRecommendTTLMinutes: homeRecommendTTLMinutes.value,
       searchHistoryTTLDays: searchHistoryTTLDays.value
@@ -103,7 +93,6 @@ export const useAppConfigStore = defineStore('app-config', () => {
       playQueryLimit: snapshot.playQueryLimit ?? playQueryLimit.value,
       prefetchCount: snapshot.prefetchCount ?? prefetchCount.value,
       colorPrefetchCount: snapshot.colorPrefetchCount ?? colorPrefetchCount.value,
-      keepTabbarDominantColor: snapshot.keepTabbarDominantColor ?? keepTabbarDominantColor.value,
       sessionTTLMinutes: snapshot.sessionTTLMinutes ?? sessionTTLMinutes.value,
       homeRecommendTTLMinutes: snapshot.homeRecommendTTLMinutes ?? homeRecommendTTLMinutes.value,
       searchHistoryTTLDays: snapshot.searchHistoryTTLDays ?? searchHistoryTTLDays.value
@@ -120,7 +109,6 @@ export const useAppConfigStore = defineStore('app-config', () => {
       playQueryLimit,
       prefetchCount,
       colorPrefetchCount,
-      keepTabbarDominantColor,
       sessionTTLMinutes,
       homeRecommendTTLMinutes,
       searchHistoryTTLDays
@@ -137,7 +125,6 @@ export const useAppConfigStore = defineStore('app-config', () => {
     playQueryLimit,
     prefetchCount,
     colorPrefetchCount,
-    keepTabbarDominantColor,
     sessionTTLMinutes,
     homeRecommendTTLMinutes,
     searchHistoryTTLDays,

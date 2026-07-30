@@ -159,26 +159,14 @@ watch(
   flex-direction: column;
   height: 100%;
   min-height: 100%;
-  background: transparent;
-}
-
-.search-page::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-sheet) 92%, var(--bg-base)) 0%, var(--bg-base) 100%),
-    radial-gradient(circle at top, var(--dominant-tint-2) 0%, transparent 36%);
-  transition: background 0.5s ease;
+  background: var(--bg-base);
 }
 
 .search-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 10px 12px;
+  padding: calc(var(--safe-top) + 10px) 10px 12px;
 }
 
 .search-header .van-search {

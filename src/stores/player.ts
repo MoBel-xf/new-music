@@ -18,6 +18,7 @@ interface PlayerSessionSnapshot {
   playContext: PlayContext
   playMode: PlayMode
   currentTime: number
+  duration: number
   volume: number
   muted: boolean
   dominantColor: string
@@ -27,21 +28,14 @@ interface PlayerSessionSnapshot {
   savedAt: number
 }
 
-/** 设置主导色及全部衍生变量（参考 tabbar 的亮暗自适应策略） */
+/** 设置歌曲主导色及播放页、TabBar 使用的衍生变量 */
 function applyDominantColor(color: string) {
   const el = document.documentElement
   el.style.setProperty('--dominant-color', color)
-  // 根据当前主题 + 主导色亮度计算衍生变量
   const isDark = el.getAttribute('data-theme') !== 'light'
-  const isDominant = el.hasAttribute('data-immersive')
-  const vars = computeDominantVars(color, isDark, isDominant)
+  const vars = computeDominantVars(color, isDark)
   for (const [key, val] of Object.entries(vars)) {
     el.style.setProperty(key, val)
-  }
-  // dominant 模式：覆盖全局文字颜色以适应主导色亮暗
-  if (isDominant && vars['--dominant-page-text']) {
-    el.style.setProperty('--text-primary', vars['--dominant-page-text'])
-    el.style.setProperty('--text-secondary', vars['--dominant-page-text-secondary'] || vars['--dominant-page-text'])
   }
 }
 
@@ -137,6 +131,7 @@ export const usePlayerStore = defineStore('player', () => {
       playContext: { ...playContext.value },
       playMode: playMode.value,
       currentTime: currentTime.value,
+      duration: duration.value,
       volume: volume.value,
       muted: muted.value,
       dominantColor: dominantColor.value,
@@ -186,7 +181,10 @@ export const usePlayerStore = defineStore('player', () => {
       lyricLines.value = parseLrc(snapshot.currentTrack.lrc || '')
       currentLyricIndex.value = snapshot.currentTime ? findCurrentLyricIndex(lyricLines.value, snapshot.currentTime) : -1
       currentTime.value = typeof snapshot.currentTime === 'number' ? snapshot.currentTime : 0
-      progress.value = 0
+      duration.value = typeof snapshot.duration === 'number' && snapshot.duration > 0
+        ? snapshot.duration
+        : Number(snapshot.currentTrack.duration) || 0
+      progress.value = duration.value > 0 ? Math.max(0, Math.min(1, currentTime.value / duration.value)) : 0
       dominantColor.value = snapshot.dominantColor || peek(snapshot.currentTrack.cover || '') || FALLBACK_COLOR
       applyDominantColor(dominantColor.value)
 
@@ -224,9 +222,12 @@ export const usePlayerStore = defineStore('player', () => {
         audio.muted = muted.value
         const restoreTime = currentTime.value
         const onLoadedMetadata = () => {
-          audio.currentTime = Math.max(0, Math.min(restoreTime, audio.duration || restoreTime))
           duration.value = audio.duration || 0
-          progress.value = duration.value > 0 ? currentTime.value / duration.value : 0
+          const targetTime = Math.max(0, Math.min(restoreTime, duration.value || restoreTime))
+          audio.currentTime = targetTime
+          currentTime.value = targetTime
+          progress.value = duration.value > 0 ? targetTime / duration.value : 0
+          currentLyricIndex.value = findCurrentLyricIndex(lyricLines.value, targetTime)
           audio.removeEventListener('loadedmetadata', onLoadedMetadata)
           // 仅在异常中断时自动恢复播放
           if (wasInterrupted) {
@@ -242,17 +243,17 @@ export const usePlayerStore = defineStore('player', () => {
     }
   }
 
-  // 监听封面变化，优先命中缓存主色
-  watch(
-    () => currentTrack.value?.cover,
-    (url) => {
-      void syncTrackColor(url)
-    },
-    { immediate: true }
-  )
-
   // ── Audio 单例 ────────────────────────────────────────────────────────────
   let _audio: HTMLAudioElement | null = null
+
+  function syncPositionFromAudio(audio: HTMLAudioElement) {
+    const audioTime = Number.isFinite(audio.currentTime) ? audio.currentTime : currentTime.value
+    const audioDuration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : duration.value
+    currentTime.value = Math.max(0, audioTime)
+    duration.value = Math.max(0, audioDuration)
+    progress.value = duration.value > 0 ? Math.max(0, Math.min(1, currentTime.value / duration.value)) : 0
+    currentLyricIndex.value = findCurrentLyricIndex(lyricLines.value, currentTime.value)
+  }
 
   function getAudio(): HTMLAudioElement {
     if (!_audio) {
@@ -276,8 +277,9 @@ export const usePlayerStore = defineStore('player', () => {
       })
       _audio.addEventListener('pause', () => {
         isPlaying.value = false
+        syncPositionFromAudio(_audio!)
         syncMediaSessionState()
-        scheduleSessionSave()
+        saveSession()
       })
       _audio.addEventListener('ended', () => {
         syncMediaSessionState()
@@ -1002,9 +1004,19 @@ export const usePlayerStore = defineStore('player', () => {
 
   restoreSession()
 
+  // 必须在会话主色恢复后再监听封面，避免先写默认色、随后又写歌曲色。
+  watch(
+    () => currentTrack.value?.cover,
+    (url) => {
+      void syncTrackColor(url)
+    },
+    { immediate: true }
+  )
+
   // 正常退出时标记 wasPlaying=false，区分异常中断
   if (typeof window !== 'undefined') {
-    window.addEventListener('beforeunload', () => {
+    const persistBeforeExit = () => {
+      if (_audio) syncPositionFromAudio(_audio)
       const snapshot = buildSessionSnapshot()
       snapshot.wasPlaying = false
       try {
@@ -1012,7 +1024,10 @@ export const usePlayerStore = defineStore('player', () => {
       } catch {
         /* noop */
       }
-    })
+    }
+
+    window.addEventListener('beforeunload', persistBeforeExit)
+    window.addEventListener('pagehide', persistBeforeExit)
   }
 
   /** 用户首次交互时恢复被浏览器拦截的自动播放 */

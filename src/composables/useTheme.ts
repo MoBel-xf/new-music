@@ -1,95 +1,79 @@
 import { ref } from 'vue'
 import { computeDominantVars } from '@/utils/color'
 
-export type ThemeMode = 'dark' | 'light' | 'dominant'
+export type ThemeMode = 'dark' | 'light'
 
-const theme = ref<ThemeMode>('dominant')
+const theme = ref<ThemeMode>('dark')
+
+// 旧“沉浸”主题曾写入这些根级变量。每次应用深浅主题时统一清理，
+// 让普通页面只读取 variables.css 中的深色/浅色配置。
+const LEGACY_THEME_OVERRIDE_VARS = [
+  '--text-primary',
+  '--text-secondary',
+  '--bg-base',
+  '--bg-canvas',
+  '--bg-sheet',
+  '--bg-card',
+  '--bg-input',
+  '--bg-active',
+  '--bg-active-hover',
+  '--bg-overlay',
+  '--surface-1',
+  '--surface-2',
+  '--surface-3',
+  '--surface-elevated',
+  '--border-light',
+  '--line-soft',
+  '--line-strong',
+  '--glass-bg',
+  '--glass-border',
+  '--glass-text-color'
+]
 
 export function useTheme() {
-  const initTheme = () => {
-    const saved = localStorage.getItem('xf-theme') as ThemeMode | null
-    if (saved && ['dark', 'light', 'dominant'].includes(saved)) {
-      theme.value = saved
+  const applyTheme = () => {
+    const el = document.documentElement
+
+    if (theme.value === 'light') {
+      el.setAttribute('data-theme', 'light')
     } else {
-      theme.value = 'dominant'
+      el.removeAttribute('data-theme')
+    }
+    el.removeAttribute('data-immersive')
+
+    for (const variable of LEGACY_THEME_OVERRIDE_VARS) {
+      el.style.removeProperty(variable)
+    }
+
+    // 歌曲主导色只更新强调色、播放页沉浸背景与 TabBar，不再覆盖普通页面底色。
+    const currentDominant = getComputedStyle(el).getPropertyValue('--dominant-color').trim()
+    if (currentDominant) {
+      const vars = computeDominantVars(currentDominant, theme.value === 'dark')
+      for (const [key, value] of Object.entries(vars)) {
+        el.style.setProperty(key, value)
+      }
+    }
+  }
+
+  const initTheme = () => {
+    const saved = localStorage.getItem('xf-theme')
+    theme.value = saved === 'light' || saved === 'dark' ? saved : 'dark'
+
+    // 将旧版本保存的 dominant 配置迁移为新的默认深色主题。
+    if (saved !== theme.value) {
+      localStorage.setItem('xf-theme', theme.value)
     }
     applyTheme()
   }
 
-  /** 设置指定主题 */
   const setTheme = (mode: ThemeMode) => {
     theme.value = mode
     localStorage.setItem('xf-theme', mode)
     applyTheme()
   }
 
-  /** 切换深/浅（向后兼容） */
   const toggleTheme = () => {
     setTheme(theme.value === 'dark' ? 'light' : 'dark')
-  }
-
-  // dominant 模式会覆盖的核心 CSS 变量列表
-  const DOMINANT_OVERRIDE_VARS = [
-    '--text-primary',
-    '--text-secondary',
-    '--bg-base',
-    '--bg-canvas',
-    '--bg-sheet',
-    '--bg-card',
-    '--bg-input',
-    '--bg-active',
-    '--bg-active-hover',
-    '--bg-overlay',
-    '--surface-1',
-    '--surface-2',
-    '--surface-3',
-    '--surface-elevated',
-    '--border-light',
-    '--line-soft',
-    '--line-strong',
-    '--glass-bg',
-    '--glass-border',
-    '--glass-text-color',
-    '--immersive-bg',
-    '--tabbar-progress-color',
-    '--play-progress-fill',
-    '--play-progress-track'
-  ]
-
-  const applyTheme = () => {
-    const el = document.documentElement
-    // dominant 模式底层走 dark 主题变量
-    const cssTheme = theme.value === 'light' ? 'light' : 'dark'
-    if (cssTheme === 'light') {
-      el.setAttribute('data-theme', 'light')
-    } else {
-      el.removeAttribute('data-theme')
-    }
-    // 标记 dominant 模式
-    if (theme.value === 'dominant') {
-      el.setAttribute('data-immersive', '')
-    } else {
-      el.removeAttribute('data-immersive')
-      // 切出 dominant 时移除所有 inline 覆盖，恢复 CSS 默认值
-      for (const v of DOMINANT_OVERRIDE_VARS) {
-        el.style.removeProperty(v)
-      }
-    }
-    // 重新计算主导色衍生变量
-    const currentDominant = getComputedStyle(el).getPropertyValue('--dominant-color').trim()
-    if (currentDominant) {
-      const isDark = cssTheme === 'dark'
-      const isDominant = theme.value === 'dominant'
-      const vars = computeDominantVars(currentDominant, isDark, isDominant)
-      for (const [key, val] of Object.entries(vars)) {
-        el.style.setProperty(key, val)
-      }
-      // dominant 模式覆盖文字颜色
-      if (isDominant && vars['--dominant-page-text']) {
-        el.style.setProperty('--text-primary', vars['--dominant-page-text'])
-        el.style.setProperty('--text-secondary', vars['--dominant-page-text-secondary'] || vars['--dominant-page-text'])
-      }
-    }
   }
 
   return { theme, initTheme, setTheme, toggleTheme }
